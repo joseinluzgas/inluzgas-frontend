@@ -13,7 +13,7 @@ import {
  * ============================================================ */
 const SERVER_URL = window.location.hostname === "localhost" 
   ? "http://localhost:3001" 
-  : "https://PENDIENTE.onrender.com";  // ← se cambiará cuando tengamos la URL de Render
+  : "https://inluzgas-server.onrender.com";  // ← se cambiará cuando tengamos la URL de Render
 
 /* ============================================================
  * API — todas las llamadas van al servidor Node
