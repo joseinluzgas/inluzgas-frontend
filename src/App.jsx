@@ -13,7 +13,7 @@ import {
  * ============================================================ */
 const SERVER_URL = window.location.hostname === "localhost" 
   ? "http://localhost:3001" 
-  : "https://inluzgas-server.onrender.com";  // ← se cambiará cuando tengamos la URL de Render
+  : "https://inluzgas-server.onrender.com";
 
 /* ============================================================
  * API — todas las llamadas van al servidor Node
@@ -1520,7 +1520,7 @@ function Integraciones() {
       <Card style={{padding:18}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><Plug size={16} style={{color:C.ok}}/><span style={{fontWeight:700}}>Gana Energía</span><Badge fg={C.ok} bg={C.okBg}>Webhook</Badge></div>
         <div style={{fontSize:13,color:C.mut,marginBottom:12}}>El proveedor envía cambios de estado a esta URL.</div>
-        <Field label="URL del webhook"><Input readOnly value="https://affiliates-webcast-maintains-version.trycloudflare.com/api/webhooks/gana-energia"/></Field>
+        <Field label="URL del webhook"><Input readOnly value="https://inluzgas-server.onrender.com/api/webhooks/gana-energia"/></Field>
         <Btn kind="ghost" onClick={simular}>Simular evento entrante</Btn>
       </Card>
       {datos.proveedores.filter(pv=>pv.tipo==="api"&&pv.tiene_token).map(pv=>(
