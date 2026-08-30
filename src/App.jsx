@@ -607,19 +607,22 @@ function ClienteDetalle({id}) {
               :<div style={{fontSize:14,fontWeight:600}}>{com?.nombre}</div>}
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"16px 24px",padding:"18px 20px"}}>
-          <CampoFicha label={c.tipo_titular==="fisica"?"NIF":"CIF"} valor={c.cif||c.nif}/>
-          {c.tipo_titular!=="fisica"&&<CampoFicha label="Representante" valor={c.representante}/>}
-          {c.tipo_titular!=="fisica"&&<CampoFicha label="DNI representante" valor={c.dni_representante}/>}
-          <CampoFicha label="Teléfono" valor={c.telefono?<TelWhatsapp tel={c.telefono} fontSize={14}/>:null}/>
-          {c.telefono2&&<CampoFicha label="Teléfono 2" valor={<TelWhatsapp tel={c.telefono2} fontSize={14}/>}/>}
-          <CampoFicha label="Email" valor={c.email?<EmailLink email={c.email} fontSize={14}/>:null}/>
-          <CampoFicha label="Dirección" valor={[c.tipo_via,c.direccion,c.numero,c.planta,c.letra].filter(Boolean).join(" ")}/>
-          <CampoFicha label="Código postal" valor={c.codpostal}/>
-          <CampoFicha label="Localidad" valor={c.localidad}/>
-          <CampoFicha label="Provincia" valor={c.provincia}/>
-          {c.iban&&<CampoFicha label="IBAN" valor={c.iban}/>}
-          {c.observaciones&&<CampoFicha label="Observaciones" valor={c.observaciones}/>}
+        <div style={{padding:"18px 20px"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"16px 24px",marginBottom:16}}>
+            <CampoFicha label={c.tipo_titular==="fisica"?"NIF":"CIF"} valor={c.cif||c.nif}/>
+            {c.tipo_titular!=="fisica"?<CampoFicha label="Representante" valor={c.representante}/>:<CampoFicha label="Nombre" valor={c.contacto||c.representante}/>}
+            {c.tipo_titular!=="fisica"?<CampoFicha label="DNI representante" valor={c.dni_representante}/>:<div/>}
+            <CampoFicha label="Teléfono" valor={c.telefono?<TelWhatsapp tel={c.telefono} fontSize={14}/>:null}/>
+            <CampoFicha label="Email" valor={c.email?<EmailLink email={c.email} fontSize={14}/>:null}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"16px 24px"}}>
+            <CampoFicha label="Dirección" valor={[c.tipo_via,c.direccion,c.numero,c.planta,c.letra].filter(Boolean).join(" ")}/>
+            <CampoFicha label="Código postal" valor={c.codpostal}/>
+            <CampoFicha label="Localidad" valor={c.localidad}/>
+            <CampoFicha label="Provincia" valor={c.provincia}/>
+            <CampoFicha label="IBAN" valor={c.iban}/>
+          </div>
+          {c.observaciones&&<div style={{marginTop:16}}><CampoFicha label="Observaciones" valor={c.observaciones}/></div>}
         </div>
       </Card>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
