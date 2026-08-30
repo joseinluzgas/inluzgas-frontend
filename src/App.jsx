@@ -448,80 +448,39 @@ function AccionesContrato({ct}) {
 /* ============================================================
  * VISTAS
  * ============================================================ */
+
 function Dashboard() {
-  const {yo,datos,recargar}=useContext(Ctx);
+  const {yo,datos,recargar,setSel,setVista}=useContext(Ctx);
   const cts=datos.contratos;
-  const esActivo=e=>["activado","Activo","Activo FTR"].includes(e);
-  const esEnviado=e=>["enviado","En Trámite","Nuevo","Pendiente de Firma","Pendiente CC"].includes(e);
+  const esActivo=e=>["activado","Activo","Activo FTR","pdte_renovar"].includes(e);
+  const esEnviado=e=>["enviado","en_tramite","En Trámite","Nuevo","Pendiente de Firma","Pendiente CC"].includes(e);
   const esBaja=e=>["baja","Baja","Baja CC"].includes(e);
-  const activos =cts.filter(c=>esActivo(c.estado));
-  const enviados=cts.filter(c=>esEnviado(c.estado));
-  const bajas   =cts.filter(c=>esBaja(c.estado)&&diasBaja(c)>=0);
-  const renov   =activos.filter(c=>c.fecha_renovacion&&(new Date(c.fecha_renovacion)-new Date())/86400000<=90).sort((a,b)=>a.fecha_renovacion.localeCompare(b.fecha_renovacion));
-  const discrep =datos.lineas.filter(ln=>{
-    if(ln.concepto!=="Comisión")return false;
-    const ct=datos.contratos.find(c=>c.id===ln.contrato_id);
-    const pr=datos.productos.find(p=>p.id===ct?.producto_id);
-    return pr&&Math.abs(ln.importe-(pr.comision_bruta??0))>0.005;
-  });
+  const activos=cts.filter(c=>esActivo(c.estado));const enviados=cts.filter(c=>esEnviado(c.estado));const bajas=cts.filter(c=>esBaja(c.estado)&&diasBaja(c)>=0);
+  const hoyD=new Date();const diasH=c=>Math.ceil((new Date(c.fecha_renovacion+"T00:00:00")-hoyD)/86400000);
+  const renov30=activos.filter(c=>c.fecha_renovacion&&diasH(c)<=30&&diasH(c)>0);const renov60=activos.filter(c=>c.fecha_renovacion&&diasH(c)<=60&&diasH(c)>0);const renov90=activos.filter(c=>c.fecha_renovacion&&diasH(c)<=90&&diasH(c)>0);
+  const vencidos=activos.filter(c=>c.fecha_renovacion&&new Date(c.fecha_renovacion+"T00:00:00")<hoyD);const vencidos60=vencidos.filter(c=>diasH(c)>=-60);
+  const ticketsAbiertos=(datos.tickets||[]).filter(t=>t.estado!=="cerrado");const ticketsAlta=(datos.tickets||[]).filter(t=>t.prioridad==="alta"&&t.estado!=="cerrado");
+  const discrep=datos.lineas.filter(ln=>{if(ln.concepto!=="Comisión")return false;const ct=datos.contratos.find(c=>c.id===ln.contrato_id);const pr=datos.productos.find(p=>p.id===ct?.producto_id);return pr&&Math.abs(ln.importe-(pr.comision_bruta??0))>0.005;});
+  const porCm={};activos.forEach(c=>{const cm=datos.comercializadoras.find(x=>x.id===c.comercializadora_id);porCm[cm?.nombre||"Otra"]=(porCm[cm?.nombre||"Otra"]||0)+1;});
+  const topCm=Object.entries(porCm).sort((a,b)=>b[1]-a[1]).slice(0,10);const maxCm=topCm[0]?.[1]||1;
+  const nLuz=activos.filter(c=>c.tipo==="luz").length;const nGas=activos.filter(c=>c.tipo==="gas").length;
+  const pctLuz=activos.length?(nLuz/activos.length*100).toFixed(0):0;const pctGas=activos.length?(nGas/activos.length*100).toFixed(0):0;
+  const porEstado={};cts.forEach(c=>{const e=ESTADOS[c.estado]||{label:c.estado};porEstado[e.label||c.estado]=(porEstado[e.label||c.estado]||0)+1;});const topEstados=Object.entries(porEstado).sort((a,b)=>b[1]-a[1]);
+  const porComercial={};activos.forEach(c=>{const cl=datos.clientes.find(x=>x.id===c.cliente_id);const u=datos.usuarios.find(x=>x.id===cl?.comercial_id);porComercial[u?.nombre||"Sin asignar"]=(porComercial[u?.nombre||"Sin asignar"]||0)+1;});
+  const topComercial=Object.entries(porComercial).sort((a,b)=>b[1]-a[1]);const maxComercial=topComercial[0]?.[1]||1;
+  const KPI=({n,label,sub,fg,bg,icon:Icon,onClick})=>(<Card style={{padding:0,flex:1,minWidth:155,cursor:onClick?"pointer":"default",overflow:"hidden",borderTop:"3px solid "+fg}} onClick={onClick}><div style={{display:"flex",alignItems:"center",gap:14,padding:"18px 20px"}}><div style={{width:48,height:48,borderRadius:12,background:bg||fg+"14",display:"flex",alignItems:"center",justifyContent:"center"}}>{Icon&&<Icon size={22} style={{color:fg}}/>}</div><div><div style={{fontSize:28,fontWeight:800,color:C.ink,letterSpacing:-1,lineHeight:1}}>{n}</div><div style={{fontSize:12,fontWeight:600,color:C.mut,marginTop:3}}>{label}</div>{sub&&<div style={{fontSize:11,color:fg,fontWeight:600,marginTop:1}}>{sub}</div>}</div></div></Card>);
+  const MiniBar=({label,count,max,color})=>(<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:130,fontSize:12,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}} title={label}>{label}</div><div style={{flex:1,height:22,background:"#f3f4f6",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:(count/max*100)+"%",background:color||"linear-gradient(90deg,#2563eb,#3b82f6)",borderRadius:6,transition:"width .4s ease"}}/></div><div style={{fontSize:13,fontWeight:700,width:40,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{count}</div></div>);
   return (
     <div>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:20}}>
-        {[
-          {n:activos.length,  label:"Contratos activados",             fg:C.ok  },
-          {n:enviados.length, label:"Enviados · pendientes activación", fg:C.info},
-          {n:bajas.length,    label:"Bajas en ventana de recuperación", fg:C.warn},
-          {n:discrep.length,  label:"Discrepancias en liquidaciones",   fg:discrep.length?C.err:C.ok},
-        ].map(k=>(
-          <Card key={k.label} style={{padding:"16px 18px",flex:1,minWidth:150}}>
-            <div style={{fontSize:30,fontWeight:800,color:k.fg,letterSpacing:-1}}>{k.n}</div>
-            <div style={{fontSize:11,fontWeight:600,color:C.mut,marginTop:2}}>{k.label}</div>
-          </Card>
-        ))}
-      </div>
-      <div style={{display:"grid",gap:16,gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))"}}>
-        <Card>
-          <div style={{padding:"12px 16px",fontWeight:700,fontSize:13,borderBottom:"1px solid "+C.line}}>Bajas recuperables (15 días)</div>
-          {bajas.length===0&&<div style={{padding:"20px 16px",fontSize:13,color:C.mut}}>Sin bajas pendientes.</div>}
-          {bajas.map(c=>{
-            const cl=datos.clientes.find(x=>x.id===c.cliente_id);
-            const cm=datos.comercializadoras.find(x=>x.id===c.comercializadora_id);
-            return (
-              <div key={c.id} style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,borderTop:"1px solid "+C.line}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600}}>{cl?.razon_social}</div>
-                  <div style={{fontSize:11,color:C.mut}}>{cm?.nombre} · baja {fmtF(c.fecha_baja)}</div>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <Badge fg={C.warn} bg={C.warnBg}><Clock size={12}/> {diasBaja(c)} días</Badge>
-                  {can.activarContrato(yo)&&<Btn small kind="ok" onClick={async()=>{await db.upd("contratos","id=eq."+c.id,{estado:"activado",fecha_baja:null});await recargar("contratos");}}>Recuperar</Btn>}
-                </div>
-              </div>
-            );
-          })}
-        </Card>
-        <Card>
-          <div style={{padding:"12px 16px",fontWeight:700,fontSize:13,borderBottom:"1px solid "+C.line}}>Renovaciones próximas (90 días)</div>
-          {renov.length===0&&<div style={{padding:"20px 16px",fontSize:13,color:C.mut}}>Ninguna en los próximos 90 días.</div>}
-          {renov.map(c=>{
-            const cl=datos.clientes.find(x=>x.id===c.cliente_id);
-            const pr=datos.productos.find(x=>x.id===c.producto_id);
-            return (
-              <div key={c.id} style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:"1px solid "+C.line}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600}}>{cl?.razon_social}</div>
-                  <div style={{fontSize:11,color:C.mut}}>{pr?.nombre}</div>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:6}}><TipoChip tipo={c.tipo}/><span style={{fontSize:13,fontWeight:600}}>{fmtF(c.fecha_renovacion)}</span></div>
-              </div>
-            );
-          })}
-        </Card>
-      </div>
+      <div style={{marginBottom:24,display:"flex",justifyContent:"space-between",alignItems:"flex-end",flexWrap:"wrap",gap:12}}><div><div style={{fontSize:24,fontWeight:800,letterSpacing:-0.5}}>Hola, {yo.nombre.split(" ")[0]} 👋</div><div style={{fontSize:13,color:C.mut}}>{new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div></div><div style={{display:"flex",gap:8}}>{vencidos60.length>0&&<Badge fg={C.err} bg={C.errBg}>⚠ {vencidos60.length} renovaciones vencidas</Badge>}{ticketsAlta.length>0&&<Badge fg="#7c3aed" bg="#ede9fe">🔥 {ticketsAlta.length} ticket{ticketsAlta.length>1?"s":""} prioridad alta</Badge>}</div></div>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:20}}><KPI n={datos.clientes.length} label="Clientes" fg="#2563eb" icon={Users}/><KPI n={activos.length} label="Contratos activos" sub={nLuz+" luz · "+nGas+" gas"} fg={C.ok} icon={Zap}/><KPI n={enviados.length} label="En trámite" fg={C.info} icon={Send}/><KPI n={cts.length} label="Contratos totales" fg="#6b7280" icon={FileText}/><KPI n={ticketsAbiertos.length} label="Tickets abiertos" fg={ticketsAbiertos.length>0?"#7c3aed":C.ok} icon={Ticket}/></div>
+      <Card style={{padding:0,marginBottom:20,overflow:"hidden"}}><div style={{padding:"16px 20px",fontWeight:700,fontSize:15,borderBottom:"1px solid "+C.line,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa"}}><span>📅 Renovaciones</span><Btn small kind="ghost" onClick={()=>{setSel(null);setVista("renovaciones");}}>Ver todas →</Btn></div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:0}}>{[{label:"Vencidas",n:vencidos60.length,color:C.err,sub:"últimos 60d"},{label:"30 días",n:renov30.length,color:C.err,sub:"próximas"},{label:"60 días",n:renov60.length,color:C.warn,sub:"próximas"},{label:"90 días",n:renov90.length,color:C.info,sub:"próximas"}].map((r,i)=>(<div key={i} style={{padding:"20px 24px",textAlign:"center",borderRight:i<3?"1px solid "+C.line:"none"}}><div style={{fontSize:36,fontWeight:800,color:r.color,lineHeight:1}}>{r.n}</div><div style={{fontSize:13,fontWeight:700,color:C.ink,marginTop:6}}>{r.label}</div><div style={{fontSize:11,color:C.mut,marginTop:2}}>{r.sub}</div></div>))}</div></Card>
+      <div style={{display:"grid",gap:16,gridTemplateColumns:"2fr 1fr",marginBottom:20}}><Card style={{padding:0}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,background:"#fafafa"}}>Contratos activos por comercializadora</div><div style={{padding:"16px 18px"}}>{topCm.map(([n,c])=><MiniBar key={n} label={n} count={c} max={maxCm} color="linear-gradient(90deg,#2563eb,#60a5fa)"/>)}{topCm.length===0&&<div style={{fontSize:13,color:C.mut,textAlign:"center",padding:12}}>Sin datos</div>}</div></Card><div style={{display:"flex",flexDirection:"column",gap:16}}><Card style={{padding:"20px",textAlign:"center"}}><div style={{fontWeight:700,fontSize:14,marginBottom:16}}>Tipo de suministro</div><div style={{display:"flex",justifyContent:"center",marginBottom:12}}><div style={{width:72,height:72,borderRadius:"50%",background:"conic-gradient("+C.luz+" 0% "+pctLuz+"%, "+C.gas+" "+pctLuz+"% 100%)",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:48,height:48,borderRadius:"50%",background:"#fff"}}/></div></div><div style={{display:"flex",justifyContent:"center",gap:20}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:10,height:10,borderRadius:3,background:C.luz}}/><span style={{fontSize:13,fontWeight:600}}>{nLuz} Luz ({pctLuz}%)</span></div><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:10,height:10,borderRadius:3,background:C.gas}}/><span style={{fontSize:13,fontWeight:600}}>{nGas} Gas ({pctGas}%)</span></div></div></Card><Card style={{padding:0,flex:1}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,background:"#fafafa"}}>Por comercial</div><div style={{padding:"12px 18px"}}>{topComercial.map(([n,c])=><MiniBar key={n} label={n} count={c} max={maxComercial} color="linear-gradient(90deg,#059669,#34d399)"/>)}</div></Card></div></div>
+      <div style={{display:"grid",gap:16,gridTemplateColumns:"1fr 1fr 1fr",marginBottom:20}}><Card style={{padding:0}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,background:"#fafafa"}}>Contratos por estado</div><div style={{padding:"12px 18px",maxHeight:280,overflowY:"auto"}}>{topEstados.map(([label,count])=>{const est=Object.values(ESTADOS).find(e=>e.label===label);return(<div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #f5f5f5"}}><Badge fg={est?.fg||C.mut} bg={est?.bg||C.greyBg}>{label}</Badge><span style={{fontSize:14,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{count}</span></div>);})}</div></Card><Card style={{padding:0}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa"}}><span>Bajas recuperables</span><Badge fg={bajas.length>0?C.warn:C.ok} bg={bajas.length>0?C.warnBg:C.okBg}>{bajas.length}</Badge></div>{bajas.length===0&&<div style={{padding:"24px 18px",fontSize:13,color:C.mut,textAlign:"center"}}>Sin bajas pendientes 👍</div>}<div style={{maxHeight:280,overflowY:"auto"}}>{bajas.slice(0,8).map(c=>{const cl=datos.clientes.find(x=>x.id===c.cliente_id);const cm=datos.comercializadoras.find(x=>x.id===c.comercializadora_id);return(<div key={c.id} style={{padding:"10px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,borderTop:"1px solid "+C.line}}><div><div style={{fontSize:13,fontWeight:600}}>{cl?.razon_social}</div><div style={{fontSize:11,color:C.mut}}>{cm?.nombre} · baja {fmtF(c.fecha_baja)}</div></div><Badge fg={C.warn} bg={C.warnBg}><Clock size={11}/> {diasBaja(c)}d</Badge></div>);})}</div></Card><Card style={{padding:0}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,background:"#fafafa"}}>Actividad reciente</div><div style={{maxHeight:280,overflowY:"auto"}}>{datos.eventos.slice(0,12).map(ev=>(<div key={ev.id} style={{padding:"8px 18px",borderTop:"1px solid "+C.line,display:"flex",gap:10,alignItems:"flex-start"}}><div style={{width:6,height:6,borderRadius:"50%",background:ev.tipo?.includes("error")?C.err:ev.tipo?.includes("sync")?C.info:C.ok,marginTop:6,flexShrink:0}}/><div><div style={{fontSize:12,fontWeight:600}}>{ev.tipo} <span style={{fontWeight:400,color:C.mut}}>· {ev.origen}</span></div><div style={{fontSize:11,color:C.mut}}>{ev.detalle?.slice(0,80)}</div><div style={{fontSize:10,color:C.mut,fontVariantNumeric:"tabular-nums"}}>{new Date(ev.created_at).toLocaleString("es-ES")}</div></div></div>))}{datos.eventos.length===0&&<div style={{padding:"24px 18px",fontSize:13,color:C.mut,textAlign:"center"}}>Sin eventos.</div>}</div></Card></div>
+      {discrep.length>0&&<Card style={{padding:"16px 20px",borderLeft:"4px solid "+C.err,marginBottom:20}}><div style={{display:"flex",alignItems:"center",gap:10}}><AlertTriangle size={18} style={{color:C.err}}/><div><div style={{fontSize:14,fontWeight:700,color:C.err}}>{discrep.length} discrepancias en liquidaciones</div><div style={{fontSize:12,color:C.mut}}>Líneas con importe diferente al catálogo.</div></div></div></Card>}
     </div>
   );
 }
-
 function Clientes() {
   const {yo,datos,setSel,setModal,recargar}=useContext(Ctx);
   const [busq,setBusq]=useState("");
