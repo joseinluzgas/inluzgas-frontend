@@ -222,7 +222,7 @@ const Field = ({label,children}) => (
 const iSt={width:"100%",fontFamily:FONT,fontSize:13,padding:"8px 10px",border:"1px solid "+C.line,borderRadius:8,background:"#fff",color:C.ink,outline:"none",boxSizing:"border-box"};
 const Input  = p => <input  {...p} style={{...iSt,...p.style}}/>;
 const Sel    = ({children,...p}) => <select {...p} style={{...iSt,...p.style}}>{children}</select>;
-const Card   = ({children,style}) => <div style={{background:C.panel,border:"1px solid "+C.line,borderRadius:12,...style}}>{children}</div>;
+const Card   = ({children,style,onClick}) => <div style={{background:C.panel,border:"1px solid "+C.line,borderRadius:12,...style}} onClick={onClick}>{children}</div>;
 const TH     = ({children,right,style}) => <th style={{padding:"8px 12px",fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",color:C.mut,textAlign:right?"right":"center",...style}}>{children}</th>;
 const TD     = ({children,right,center,left,style}) => <td style={{padding:"13px 14px",fontSize:13,textAlign:left?"left":right?"right":"center",borderTop:"1px solid "+C.line,verticalAlign:"middle",...style}}>{children}</td>;
 // Teléfono con acceso directo a WhatsApp. Normaliza a formato internacional español si hace falta.
@@ -788,17 +788,16 @@ function ContratoDetalle({id, volver}) {
       </Card>
 
       {/* Dirección CUPS si existe */}
-      {(ct.direccion_cups||ct.codpostal_cups)&&(
-        <Card style={{padding:"18px 20px",marginBottom:16}}>
-          <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>Dirección del punto de suministro</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"12px 24px"}}>
-            <CampoFicha label="Dirección" valor={[ct.tipo_via_cups,ct.direccion_cups,ct.numero_cups,ct.planta_cups,ct.letra_cups].filter(Boolean).join(" ")}/>
-            <CampoFicha label="Código postal" valor={ct.codpostal_cups}/>
-            <CampoFicha label="Localidad" valor={ct.localidad_cups}/>
-            <CampoFicha label="Provincia" valor={ct.provincia_cups}/>
-          </div>
-        </Card>
-      )}
+      {/* Dirección del punto de suministro — siempre visible */}
+      <Card style={{padding:"18px 20px",marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>Dirección del punto de suministro</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"12px 24px"}}>
+          <CampoFicha label="Dirección" valor={[ct.tipo_via_cups,ct.calle_cups,ct.numero_cups,ct.planta_cups,ct.puerta_cups].filter(Boolean).join(" ")||ct.direccion_cups||"—"}/>
+          <CampoFicha label="Código postal" valor={ct.codpostal_cups||"—"}/>
+          <CampoFicha label="Localidad" valor={ct.localidad_cups||"—"}/>
+          <CampoFicha label="Provincia" valor={ct.provincia_cups||"—"}/>
+        </div>
+      </Card>
 
       {/* Observaciones (historial) */}
       <Card style={{padding:"18px 20px",marginBottom:16}}>
@@ -2167,7 +2166,7 @@ function ModalNuevoContrato() {
   };
 
   const guardar=async()=>{
-    const base={cliente_id:f.cliente_id,estado:"borrador",id_inergia:null,duracion_meses:f.duracion_meses,permanencia:f.permanencia,renovacion_auto:f.renovacion_auto,cambio_tit:f.cambio_tit,cambio_pot:f.cambio_pot,facturae:f.facturae,iban:f.iban,observaciones:f.observaciones,cnae:f.cnae,autoconsumo:f.autoconsumo,servicios:f.servicios,canal:f.canal,tipo_via_cups:f.tipo_via_cups,direccion_cups:f.direccion_cups,numero_cups:f.numero_cups,planta_cups:f.planta_cups,letra_cups:f.letra_cups,aclarador_cups:f.aclarador_cups,codpostal_cups:f.codpostal_cups,provincia_cups:f.provincia_cups,localidad_cups:f.localidad_cups};
+    const base={cliente_id:f.cliente_id,estado:"borrador",id_inergia:null,duracion_meses:f.duracion_meses,permanencia:f.permanencia,renovacion_auto:f.renovacion_auto,cambio_tit:f.cambio_tit,cambio_pot:f.cambio_pot,facturae:f.facturae,iban:f.iban,observaciones:f.observaciones,cnae:f.cnae,autoconsumo:f.autoconsumo,servicios:f.servicios,canal:f.canal,calle_cups:f.direccion_cups,numero_cups:f.numero_cups,planta_cups:f.planta_cups,puerta_cups:f.letra_cups,aclarador_cups:f.aclarador_cups,codpostal_cups:f.codpostal_cups,provincia_cups:f.provincia_cups,localidad_cups:f.localidad_cups};
     if(esLuz)await db.ins("contratos",{...base,tipo:"luz",cups:f.cups_luz,comercializadora_id:f.comercializadora_luz,producto_id:prIdLuz,tiposol:f.tiposol_luz,potencia_p1:parseFloat(f.potencia_p1)||0,potencia_p2:parseFloat(f.potencia_p2)||0,potencia_p3:parseFloat(f.potencia_p3)||0,potencia_p4:parseFloat(f.potencia_p4)||0,potencia_p5:parseFloat(f.potencia_p5)||0,potencia_p6:parseFloat(f.potencia_p6)||0});
     if(esGas)await db.ins("contratos",{...base,tipo:"gas",cups:f.cups_gas,comercializadora_id:f.comercializadora_gas,producto_id:prIdGas,tiposol:f.tiposol_gas});
     await recargar("contratos"); setModal(null);
@@ -2501,9 +2500,9 @@ function ModalRenovar() {
           potencia_p3:ct.potencia_p3, potencia_p4:ct.potencia_p4,
           potencia_p5:ct.potencia_p5, potencia_p6:ct.potencia_p6,
           consumo_anual:ct.consumo_anual, tiposol:"C1",
-          tipo_via_cups:ct.tipo_via_cups, direccion_cups:ct.direccion_cups,
+          tipo_via_cups:ct.tipo_via_cups, calle_cups:ct.calle_cups||ct.direccion_cups,
           numero_cups:ct.numero_cups, planta_cups:ct.planta_cups,
-          letra_cups:ct.letra_cups, aclarador_cups:ct.aclarador_cups,
+          puerta_cups:ct.puerta_cups||ct.letra_cups, aclarador_cups:ct.aclarador_cups,
           codpostal_cups:ct.codpostal_cups, provincia_cups:ct.provincia_cups,
           localidad_cups:ct.localidad_cups,
           observaciones:f.observaciones||"Renovación con cambio desde "+cmActual?.nombre,
