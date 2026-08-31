@@ -359,8 +359,9 @@ function AccionesContrato({ct}) {
     setConsultando(false);
   };
 
-  const cambiar=async estado=>{
+  const cambiar=async (estado,manual=false)=>{
     const upd={estado,estado_at:new Date().toISOString()};
+    if(manual) upd.no_sync=true; // Cambio manual → excluir de sincronización API
     if (estado==="enviado")  upd.fecha_envio=hoy();
     if (estado==="activado") {
       const dm=ct.duracion_meses||12;
@@ -377,8 +378,8 @@ function AccionesContrato({ct}) {
 
   const cambiarManual=async nuevoEstado=>{
     if(!nuevoEstado||nuevoEstado===ct.estado) return;
-    if(!confirm("¿Cambiar estado de «"+(ESTADOS[ct.estado]?.label||ct.estado)+"» a «"+(ESTADOS[nuevoEstado]?.label||nuevoEstado)+"»?")) return;
-    await cambiar(nuevoEstado);
+    if(!confirm("¿Cambiar estado de «"+(ESTADOS[ct.estado]?.label||ct.estado)+"» a «"+(ESTADOS[nuevoEstado]?.label||nuevoEstado)+"»?\n\nEl contrato se marcará como manual y no se sincronizará con la API.")) return;
+    await cambiar(nuevoEstado,true);
     setShowEstados(false);
   };
 
@@ -392,22 +393,22 @@ function AccionesContrato({ct}) {
       {ct.estado==="borrador"&&can.enviarContrato(yo)&&(
         esApi
           ?<Btn small kind="primary" onClick={()=>setModal({t:"enviarInergia",ct})}><Send size={12}/> Enviar a {pv?.nombre}</Btn>
-          :<Btn small kind="primary" onClick={()=>cambiar("enviado")}><Send size={12}/> Enviar</Btn>
+          ?<Btn small kind="primary" onClick={()=>cambiar("enviado",true)}><Send size={12}/> Enviar</Btn>
       )}
       {ct.estado==="enviado"&&esApi&&ct.id_inergia&&can.consultarEstado(yo)&&!ct.no_sync&&
         <Btn small kind="ghost" disabled={consultando} onClick={consultarEstado} title={"Consultar estado en "+pv?.nombre}><RefreshCw size={12}/> {consultando?"Consultando…":"Consultar estado"}</Btn>}
       {ct.estado==="enviado"&&can.activarContrato(yo)&&<>
-        <Btn small kind="ok"     onClick={()=>cambiar("activado")}><CheckCircle2 size={12}/> Activar</Btn>
-        <Btn small kind="danger" onClick={()=>cambiar("rechazado")}>Rechazar</Btn>
+        <Btn small kind="ok"     onClick={()=>cambiar("activado",true)}><CheckCircle2 size={12}/> Activar</Btn>
+        <Btn small kind="danger" onClick={()=>cambiar("rechazado",true)}>Rechazar</Btn>
       </>}
       {ct.estado==="enviado"&&can.editarEnviado(yo)&&
         <Btn small kind="ghost" onClick={()=>setModal({t:"editarContrato",ct})}><Pencil size={12}/> Editar</Btn>}
       {["enviado","activado"].includes(ct.estado)&&can.editarEnviado(yo)&&
-        <Btn small kind="danger" onClick={()=>cambiar("cancelado")}><Ban size={12}/> Cancelar</Btn>}
+        <Btn small kind="danger" onClick={()=>cambiar("cancelado",true)}><Ban size={12}/> Cancelar</Btn>}
       {ct.estado==="activado"&&can.activarContrato(yo)&&
-        <Btn small kind="ghost" onClick={()=>cambiar("baja")}>Registrar baja</Btn>}
+        <Btn small kind="ghost" onClick={()=>cambiar("baja",true)}>Registrar baja</Btn>}
       {ct.estado==="baja"&&dias>=0&&can.activarContrato(yo)&&
-        <Btn small kind="ok" onClick={()=>cambiar("activado")}><RotateCcw size={12}/> Recuperar</Btn>}
+        <Btn small kind="ok" onClick={()=>cambiar("activado",true)}><RotateCcw size={12}/> Recuperar</Btn>}
 
       {/* Cambiar estado manualmente */}
       {can.activarContrato(yo)&&(
