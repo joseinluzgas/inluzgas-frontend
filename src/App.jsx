@@ -393,7 +393,7 @@ function AccionesContrato({ct}) {
       {ct.estado==="borrador"&&can.enviarContrato(yo)&&(
         esApi
           ?<Btn small kind="primary" onClick={()=>setModal({t:"enviarInergia",ct})}><Send size={12}/> Enviar a {pv?.nombre}</Btn>
-          ?<Btn small kind="primary" onClick={()=>cambiar("enviado",true)}><Send size={12}/> Enviar</Btn>
+          :<Btn small kind="primary" onClick={()=>cambiar("enviado",true)}><Send size={12}/> Enviar</Btn>
       )}
       {ct.estado==="enviado"&&esApi&&ct.id_inergia&&can.consultarEstado(yo)&&!ct.no_sync&&
         <Btn small kind="ghost" disabled={consultando} onClick={consultarEstado} title={"Consultar estado en "+pv?.nombre}><RefreshCw size={12}/> {consultando?"Consultando…":"Consultar estado"}</Btn>}
