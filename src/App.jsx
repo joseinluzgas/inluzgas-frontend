@@ -1546,6 +1546,30 @@ function Integraciones() {
  * ============================================================ */
 const TICKET_ESTADOS={abierto:{label:"Abierto",fg:"#1e40af",bg:"#dbeafe"},en_curso:{label:"En curso",fg:"#92400e",bg:"#fef3c7"},cerrado:{label:"Cerrado",fg:"#065f46",bg:"#d1fae5"}};
 const TICKET_PRIORIDAD={alta:{label:"Alta",fg:"#991b1b",bg:"#fee2e2"},media:{label:"Media",fg:"#92400e",bg:"#fef3c7"},baja:{label:"Baja",fg:"#1e40af",bg:"#dbeafe"}};
+const CANALES_DEFAULT=["Alfer","Salutaris","People","Processus","Gana","Repsol"];
+
+// Selector de canal reutilizable con botón "+"
+function CanalSel({value,onChange,datos,recargar}) {
+  const canales=(datos.canales||[]).map(c=>c.nombre);
+  const todos=[...new Set([...CANALES_DEFAULT,...canales])].sort();
+  const addCanal=async()=>{
+    const nombre=prompt("Nombre del nuevo canal:");
+    if(!nombre||!nombre.trim())return;
+    const existe=todos.some(c=>c.toLowerCase()===nombre.trim().toLowerCase());
+    if(existe){alert("Ese canal ya existe.");return;}
+    await db.ins("canales",[{nombre:nombre.trim()}]);
+    await recargar("canales");
+  };
+  return (
+    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+      <Sel value={value} onChange={onChange} style={{flex:1}}>
+        <option value="">— Seleccionar canal —</option>
+        {todos.map(c=><option key={c} value={c}>{c}</option>)}
+      </Sel>
+      <button onClick={addCanal} title="Añadir canal" style={{fontFamily:FONT,fontSize:16,fontWeight:700,width:32,height:32,borderRadius:8,border:"1px solid "+C.line,background:"#fff",cursor:"pointer",color:C.ink,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+    </div>
+  );
+}
 
 function Tickets() {
   const {yo,datos,setSel,setModal}=useContext(Ctx);
@@ -2218,7 +2242,7 @@ function ModalNuevoContrato() {
         <Field label="Autoconsumo"><Sel value={f.autoconsumo} onChange={e=>setF({...f,autoconsumo:e.target.value})}><option>NO</option><option>SI</option></Sel></Field>
         <Field label="Factura electrónica"><Sel value={String(f.facturae)} onChange={e=>setF({...f,facturae:parseInt(e.target.value)})}><option value="1">Sí</option><option value="0">No</option></Sel></Field>
         <Field label="CNAE"><Input placeholder="4711" value={f.cnae} onChange={e=>setF({...f,cnae:e.target.value})}/></Field>
-        <Field label="Canal"><Input value={f.canal} onChange={e=>setF({...f,canal:e.target.value})}/></Field>
+        <Field label="Canal"><CanalSel value={f.canal} onChange={e=>setF({...f,canal:e.target.value})} datos={datos} recargar={recargar}/></Field>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <Field label="IBAN"><Input placeholder="ES00…" value={f.iban} onChange={e=>setF({...f,iban:e.target.value})}/></Field>
@@ -2476,6 +2500,7 @@ function ModalRenovar() {
     comercializadora_id:ct.comercializadora_id,
     producto_id:ct.producto_id||"",
     observaciones:"",
+    canal:ct.canal||"",
   });
   const [guardando,setGuardando]=useState(false);
 
@@ -2507,6 +2532,7 @@ function ModalRenovar() {
           codpostal_cups:ct.codpostal_cups, provincia_cups:ct.provincia_cups,
           localidad_cups:ct.localidad_cups,
           observaciones:f.observaciones||"Renovación con cambio desde "+cmActual?.nombre,
+          canal:f.canal||ct.canal||"",
         });
         await db.ins("eventos",{origen:"CRM",tipo:"contrato.renovacion_cambio",ref:ct.id,
           detalle:"CUPS "+ct.cups+" · de "+cmActual?.nombre+" a "+datos.comercializadoras.find(x=>x.id===f.comercializadora_id)?.nombre});
@@ -2517,6 +2543,7 @@ function ModalRenovar() {
         const upd={
           fecha_renovacion:nuevaFechaRen.toISOString().slice(0,10),
           ...(prId!==ct.producto_id?{producto_id:prId}:{}),
+          ...(f.canal&&f.canal!==ct.canal?{canal:f.canal}:{}),
         };
         if(f.observaciones) upd.observaciones=(ct.observaciones?ct.observaciones+" · ":"")+f.observaciones;
         await db.upd("contratos","id=eq."+ct.id,upd);
@@ -2582,6 +2609,7 @@ function ModalRenovar() {
         </div>
       </Field>
 
+      <Field label="Canal"><CanalSel value={f.canal||""} onChange={e=>setF({...f,canal:e.target.value})} datos={datos} recargar={recargar}/></Field>
       <Field label="Observaciones"><Input value={f.observaciones} onChange={e=>setF({...f,observaciones:e.target.value})} placeholder="Motivo de la renovación, notas…"/></Field>
 
       <div style={{display:"flex",gap:8,marginTop:8}}>
