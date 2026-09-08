@@ -486,11 +486,15 @@ function Dashboard() {
 function Clientes() {
   const {yo,datos,setSel,setModal,recargar}=useContext(Ctx);
   const [busq,setBusq]=useState("");
+  const [fComercial,setFComercial]=useState("");
   const [orden,setOrden]=useState({campo:"razon_social",dir:1});
   const [sel,setSelIds]=useState(new Set());
   const [moverA,setMoverA]=useState("");
   const [moviendo,setMoviendo]=useState(false);
-  const list=datos.clientes.filter(c=>(c.razon_social+c.cif+(c.nif||"")+(c.telefono||"")+(c.email||"")+(c.localidad||"")).toLowerCase().includes(busq.toLowerCase()));
+  const list=datos.clientes.filter(c=>{
+    if(fComercial&&c.comercial_id!==fComercial) return false;
+    return (c.razon_social+c.cif+(c.nif||"")+(c.telefono||"")+(c.email||"")+(c.localidad||"")).toLowerCase().includes(busq.toLowerCase());
+  });
   const acc=(c,campo)=>{
     if(campo==="comercial") return datos.usuarios.find(u=>u.id===c.comercial_id)?.nombre||"";
     if(campo==="ncts") return datos.contratos.filter(x=>x.cliente_id===c.id).length;
@@ -513,6 +517,10 @@ function Clientes() {
           <Input placeholder="Buscar por razón social o CIF…" value={busq} onChange={e=>setBusq(e.target.value)} style={{paddingLeft:30}}/>
         </div>
         <Btn onClick={()=>setModal({t:"nuevoCliente"})}><Plus size={14}/> Nuevo cliente</Btn>
+        <Sel value={fComercial} onChange={e=>setFComercial(e.target.value)} style={{width:180}}>
+          <option value="">Todos los comerciales</option>
+          {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
+        </Sel>
         <div style={{flex:1}}/>
         <div style={{fontSize:13,fontWeight:600,color:C.mut}}>{datos.clientes.length} clientes</div>
       </div>
@@ -878,10 +886,12 @@ function Contratos() {
   const {datos,setModal,setSel}=useContext(Ctx);
   const [busq,setBusq]=useState("");
   const [fEstado,setFEstado]=useState("");
+  const [fComercial,setFComercial]=useState("");
   const [orden,setOrden]=useState({campo:"estado_at",dir:-1});
   const list=datos.contratos.filter(c=>{
     const cl=datos.clientes.find(x=>x.id===c.cliente_id);
     const ok=!busq||(cl?.razon_social+c.cups).toLowerCase().includes(busq.toLowerCase());
+    if(fComercial&&cl?.comercial_id!==fComercial) return false;
     return ok&&(!fEstado||c.estado===fEstado);
   });
   const acc=(c,campo)=>{
@@ -903,6 +913,10 @@ function Contratos() {
         <Sel value={fEstado} onChange={e=>setFEstado(e.target.value)} style={{width:200}}>
           <option value="">Todos los estados</option>
           {Object.entries(ESTADOS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+        </Sel>
+        <Sel value={fComercial} onChange={e=>setFComercial(e.target.value)} style={{width:180}}>
+          <option value="">Todos los comerciales</option>
+          {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
         </Sel>
         <Btn kind="ghost" onClick={()=>exportarContratosExcel(list,datos)}><Database size={14}/> Exportar a Excel</Btn>
         <Btn onClick={()=>setModal({t:"nuevoContrato"})}><Plus size={14}/> Alta de contrato</Btn>
