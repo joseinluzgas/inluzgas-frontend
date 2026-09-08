@@ -2036,7 +2036,7 @@ function Renovaciones() {
               const pr=datos.productos.find(x=>x.id===ct.producto_id);
               const com=datos.usuarios.find(u=>u.id===cl?.comercial_id);
               const diasR=diasHasta(ct);
-              const colorDias=diasR<0?C.err:diasR<=30?C.err:diasR<=60?C.warn:C.info;
+              const colorDias=diasR<0?"#000":diasR<=30?C.err:diasR<=60?C.warn:C.info;
               return (
                 <tr key={ct.id} style={{cursor:"pointer"}} onClick={()=>setSel({tipo:"contrato",id:ct.id})}>
                   <TD style={{fontWeight:600,maxWidth:220,whiteSpace:"normal"}}>{cl?.razon_social||"—"}</TD>
@@ -2047,7 +2047,7 @@ function Renovaciones() {
                   <TD style={{fontSize:12,maxWidth:180,whiteSpace:"normal"}}>{pr?.nombre}</TD>
                   <TD style={{fontSize:12,color:C.mut}}>{fmtF(ct.fecha_activacion)}</TD>
                   <TD style={{fontSize:12,fontWeight:600}}>{fmtF(ct.fecha_renovacion)}</TD>
-                  <TD><Badge fg={colorDias} bg={colorDias+"18"}>{diasR<0?"Vencido "+Math.abs(diasR)+"d":diasR+"d"}</Badge></TD>
+                  <TD><Badge fg={diasR<0?"#fff":colorDias} bg={diasR<0?"#000":colorDias+"18"}>{diasR<0?"Vencido "+Math.abs(diasR)+"d":diasR+"d"}</Badge></TD>
                   <TD style={{fontSize:12,color:C.mut}}>{com?.nombre}</TD>
                   <TD>
                     <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
