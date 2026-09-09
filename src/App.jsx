@@ -588,51 +588,103 @@ function ClienteDetalle({id}) {
   if(!c)return null;
   const cts=datos.contratos.filter(x=>x.cliente_id===id);
   const com=datos.usuarios.find(u=>u.id===c.comercial_id);
+  const [editando,setEditando]=useState(false);
+  const [f,setF]=useState({});
+  const [guardando,setGuardando]=useState(false);
+
+  const abrirEdicion=()=>{
+    setF({razon_social:c.razon_social||"",tipo_titular:c.tipo_titular||"empresa",cif:c.cif||"",nif:c.nif||"",
+      contacto:c.contacto||"",representante:c.representante||"",dni_representante:c.dni_representante||"",
+      telefono:c.telefono||"",telefono2:c.telefono2||"",email:c.email||"",
+      tipo_via:c.tipo_via||"",direccion:c.direccion||"",numero:c.numero||"",planta:c.planta||"",letra:c.letra||"",
+      codpostal:c.codpostal||"",localidad:c.localidad||"",provincia:c.provincia||"",
+      iban:c.iban||"",observaciones:c.observaciones||""});
+    setEditando(true);
+  };
+  const guardar=async()=>{
+    setGuardando(true);
+    await db.upd("clientes","id=eq."+id,f);
+    await recargar("clientes");
+    setEditando(false);setGuardando(false);
+  };
+  const buscarCP=async cp=>{
+    if(cp.length!==5)return;
+    try{const r=await fetch("https://api.zippopotam.us/es/"+cp);if(!r.ok)return;
+    const d=await r.json();const prov=CP_PROVINCIAS[cp.slice(0,2)]||d.places?.[0]?.state||"";
+    setF(prev=>({...prev,provincia:prov,localidad:d.places?.[0]?.["place name"]||""}));}catch{}
+  };
+
   return (
     <div>
       <button style={{fontSize:13,fontWeight:600,color:C.mut,background:"none",border:"none",cursor:"pointer",marginBottom:12}} onClick={()=>setSel(null)}>← Clientes</button>
       <Card style={{padding:0,marginBottom:16,overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,flexWrap:"wrap",padding:"18px 20px",borderBottom:"1px solid "+C.line,background:"#fafafa"}}>
           <div>
-            <div style={{fontSize:20,fontWeight:800,letterSpacing:-0.4}}>{c.razon_social}</div>
+            {editando
+              ?<Input value={f.razon_social} onChange={e=>setF({...f,razon_social:e.target.value})} style={{fontSize:18,fontWeight:800,minWidth:300}}/>
+              :<div style={{fontSize:20,fontWeight:800,letterSpacing:-0.4}}>{c.razon_social}</div>}
             <div style={{fontSize:12,color:C.mut,marginTop:2}}>{c.tipo_titular==="fisica"?"Persona física":c.tipo_titular==="organismo"?"Organismo público":"Empresa"}</div>
           </div>
-          <div>
-            <div style={{fontSize:11,color:C.mut,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Comercial</div>
-            {can.cambiarComercial(yo)
-              ?<Sel value={c.comercial_id||""} onChange={async e=>{
-                  const nuevoId=e.target.value;
-                  if(nuevoId===c.comercial_id)return;
-                  const actual=datos.usuarios.find(u=>u.id===c.comercial_id)?.nombre||"sin asignar";
-                  const nuevo=datos.usuarios.find(u=>u.id===nuevoId)?.nombre||"";
-                  if(!window.confirm(`¿Cambiar el comercial de este cliente de ${actual} a ${nuevo}?\n\nAfecta a las comisiones de sus contratos.`)){
-                    e.target.value=c.comercial_id||""; // revertir el select
-                    return;
-                  }
-                  await db.upd("clientes","id=eq."+id,{comercial_id:nuevoId});
-                  await recargar("clientes");
-                }} style={{width:180}}>
-                {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
-              </Sel>
-              :<div style={{fontSize:14,fontWeight:600}}>{com?.nombre}</div>}
+          <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+            {!editando&&<Btn small kind="ghost" onClick={abrirEdicion}><Pencil size={12}/> Editar</Btn>}
+            {editando&&<><Btn small disabled={guardando} onClick={guardar}>{guardando?"Guardando…":"Guardar"}</Btn><Btn small kind="ghost" onClick={()=>setEditando(false)}>Cancelar</Btn></>}
+            <div>
+              <div style={{fontSize:11,color:C.mut,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Comercial</div>
+              {can.cambiarComercial(yo)
+                ?<Sel value={c.comercial_id||""} onChange={async e=>{
+                    const nuevoId=e.target.value;
+                    if(nuevoId===c.comercial_id)return;
+                    const actual=datos.usuarios.find(u=>u.id===c.comercial_id)?.nombre||"sin asignar";
+                    const nuevo=datos.usuarios.find(u=>u.id===nuevoId)?.nombre||"";
+                    if(!window.confirm(`¿Cambiar el comercial de este cliente de ${actual} a ${nuevo}?\n\nAfecta a las comisiones de sus contratos.`)){
+                      e.target.value=c.comercial_id||"";return;}
+                    await db.upd("clientes","id=eq."+id,{comercial_id:nuevoId});
+                    await recargar("clientes");
+                  }} style={{width:180}}>
+                  {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
+                </Sel>
+                :<div style={{fontSize:14,fontWeight:600}}>{com?.nombre}</div>}
+            </div>
           </div>
         </div>
         <div style={{padding:"18px 20px"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"16px 24px",marginBottom:16}}>
-            <CampoFicha label={c.tipo_titular==="fisica"?"NIF":"CIF"} valor={c.cif||c.nif}/>
-            {c.tipo_titular!=="fisica"?<CampoFicha label="Representante" valor={c.representante}/>:<CampoFicha label="Nombre" valor={c.contacto||c.representante}/>}
-            {c.tipo_titular!=="fisica"?<CampoFicha label="DNI representante" valor={c.dni_representante}/>:<div/>}
-            <CampoFicha label="Teléfono" valor={c.telefono?<TelWhatsapp tel={c.telefono} fontSize={14}/>:null}/>
-            <CampoFicha label="Email" valor={c.email?<EmailLink email={c.email} fontSize={14}/>:null}/>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"16px 24px"}}>
-            <CampoFicha label="Dirección" valor={[c.tipo_via,c.direccion,c.numero,c.planta,c.letra].filter(Boolean).join(" ")}/>
-            <CampoFicha label="Código postal" valor={c.codpostal}/>
-            <CampoFicha label="Localidad" valor={c.localidad}/>
-            <CampoFicha label="Provincia" valor={c.provincia}/>
-            <CampoFicha label="IBAN" valor={c.iban}/>
-          </div>
-          {c.observaciones&&<div style={{marginTop:16}}><CampoFicha label="Observaciones" valor={c.observaciones}/></div>}
+          {editando?(
+            <div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"12px 16px",marginBottom:16}}>
+                <Field label={f.tipo_titular==="fisica"?"NIF":"CIF"}><Input value={f.tipo_titular==="fisica"?f.nif:f.cif} onChange={e=>f.tipo_titular==="fisica"?setF({...f,nif:e.target.value}):setF({...f,cif:e.target.value})}/></Field>
+                <Field label={f.tipo_titular!=="fisica"?"Representante":"Nombre"}><Input value={f.tipo_titular!=="fisica"?f.representante:f.contacto} onChange={e=>f.tipo_titular!=="fisica"?setF({...f,representante:e.target.value}):setF({...f,contacto:e.target.value})}/></Field>
+                {f.tipo_titular!=="fisica"&&<Field label="DNI representante"><Input value={f.dni_representante} onChange={e=>setF({...f,dni_representante:e.target.value})}/></Field>}
+                <Field label="Teléfono"><Input value={f.telefono} onChange={e=>setF({...f,telefono:e.target.value})}/></Field>
+                <Field label="Email"><Input value={f.email} onChange={e=>setF({...f,email:e.target.value})}/></Field>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"12px 16px",marginBottom:16}}>
+                <Field label="Dirección"><Input value={f.direccion} onChange={e=>setF({...f,direccion:e.target.value})}/></Field>
+                <Field label="Código postal"><Input value={f.codpostal} maxLength={5} onChange={e=>{const v=e.target.value.replace(/\D/g,"");setF({...f,codpostal:v});}} onBlur={e=>buscarCP(e.target.value)}/></Field>
+                <Field label="Localidad"><Input value={f.localidad} onChange={e=>setF({...f,localidad:e.target.value})}/></Field>
+                <Field label="Provincia"><Input value={f.provincia} onChange={e=>setF({...f,provincia:e.target.value})}/></Field>
+                <Field label="IBAN"><Input value={f.iban} onChange={e=>setF({...f,iban:e.target.value})}/></Field>
+              </div>
+              <Field label="Observaciones"><Input value={f.observaciones} onChange={e=>setF({...f,observaciones:e.target.value})}/></Field>
+            </div>
+          ):(
+            <div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"16px 24px",marginBottom:16}}>
+                <CampoFicha label={c.tipo_titular==="fisica"?"NIF":"CIF"} valor={c.cif||c.nif}/>
+                {c.tipo_titular!=="fisica"?<CampoFicha label="Representante" valor={c.representante}/>:<CampoFicha label="Nombre" valor={c.contacto||c.representante}/>}
+                {c.tipo_titular!=="fisica"?<CampoFicha label="DNI representante" valor={c.dni_representante}/>:<div/>}
+                <CampoFicha label="Teléfono" valor={c.telefono?<TelWhatsapp tel={c.telefono} fontSize={14}/>:null}/>
+                <CampoFicha label="Email" valor={c.email?<EmailLink email={c.email} fontSize={14}/>:null}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"16px 24px"}}>
+                <CampoFicha label="Dirección" valor={[c.tipo_via,c.direccion,c.numero,c.planta,c.letra].filter(Boolean).join(" ")}/>
+                <CampoFicha label="Código postal" valor={c.codpostal}/>
+                <CampoFicha label="Localidad" valor={c.localidad}/>
+                <CampoFicha label="Provincia" valor={c.provincia}/>
+                <CampoFicha label="IBAN" valor={c.iban}/>
+              </div>
+              {c.observaciones&&<div style={{marginTop:16}}><CampoFicha label="Observaciones" valor={c.observaciones}/></div>}
+            </div>
+          )}
         </div>
       </Card>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -2105,7 +2157,12 @@ function ModalNuevoCliente() {
 
   const guardar=async()=>{
     if(errDoc)return;
-    await db.ins("clientes",{...f,creado_por:yo.id});
+    const data={...f,creado_por:yo.id};
+    // Persona física: razon_social = nombre + apellidos
+    if(f.tipo_titular==="fisica"){
+      data.razon_social=[f.razon_social,f.ape1,f.ape2].filter(Boolean).join(" ");
+    }
+    await db.ins("clientes",data);
     await recargar("clientes"); setModal(null);
   };
 
