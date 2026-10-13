@@ -59,7 +59,7 @@ const ESTADOS = {
   // Estados internos del CRM (minúsculas)
   borrador:     { label:"Borrador",       fg:C.grey, bg:C.greyBg },
   enviado:      { label:"Enviado",        fg:C.info, bg:C.infoBg },
-  en_tramite:   { label:"En trámite",     fg:"#7c3aed", bg:"#ede9fe" },
+  en_tramite:   { label:"En Trámite",     fg:"#7c3aed", bg:"#ede9fe" },
   activado:     { label:"Activado",       fg:C.ok,   bg:C.okBg   },
   pdte_renovar: { label:"Pdte. Renovar",  fg:"#b45309",bg:"#fef3c7" },
   pdte_grabar:  { label:"Pdte. Grabar",   fg:"#6d28d9",bg:"#ede9fe" },
@@ -1913,6 +1913,7 @@ function Renovaciones() {
   const [busq,setBusq]=useState("");
   const [fCm,setFCm]=useState("");
   const [fComercial,setFComercial]=useState("");
+  const [fMes,setFMes]=useState("");
   const [fDesde,setFDesde]=useState("");
   const [fHasta,setFHasta]=useState("");
   const [orden,setOrden]=useState({campo:"fecha_renovacion",dir:1});
@@ -1943,8 +1944,15 @@ function Renovaciones() {
   ];
 
   // Resolver filtro → lista base
+  const MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   let base;
-  if(fDesde||fHasta){
+  if(fMes){
+    // Filtrar por mes de renovación (1-12), cualquier año
+    base=activos.filter(c=>{
+      const m=new Date(c.fecha_renovacion+"T00:00:00").getMonth()+1;
+      return m===parseInt(fMes);
+    });
+  } else if(fDesde||fHasta){
     base=activos.filter(c=>{
       if(fDesde&&c.fecha_renovacion<fDesde) return false;
       if(fHasta&&c.fecha_renovacion>fHasta) return false;
@@ -1986,9 +1994,9 @@ function Renovaciones() {
   const comercialesConRenov=[...new Set(activos.map(c=>{const cl=datos.clientes.find(x=>x.id===c.cliente_id);return cl?.comercial_id;}).filter(Boolean))];
 
   const TabBtn=({t})=>{
-    const act=filtro===t.id&&!fDesde&&!fHasta;
+    const act=filtro===t.id&&!fDesde&&!fHasta&&!fMes;
     return (
-      <button onClick={()=>{setFiltro(t.id);setFDesde("");setFHasta("");}}
+      <button onClick={()=>{setFiltro(t.id);setFDesde("");setFHasta("");setFMes("");}}
         style={{fontFamily:FONT,fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:20,cursor:"pointer",
           border:"1px solid "+(act?t.color:C.line),background:act?t.color:"#fff",color:act?"#fff":C.ink,
           display:"flex",alignItems:"center",gap:5}}>
@@ -2019,18 +2027,18 @@ function Renovaciones() {
         <div style={{width:1,height:48,background:C.line,alignSelf:"center"}}/>
         {/* Todos + Default */}
         <div style={{display:"flex",gap:6,alignSelf:"flex-end"}}>
-          <button onClick={()=>{setFiltro("default");setFDesde("");setFHasta("");}}
+          <button onClick={()=>{setFiltro("default");setFDesde("");setFHasta("");setFMes("");}}
             style={{fontFamily:FONT,fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:20,cursor:"pointer",
-              border:"1px solid "+(filtro==="default"&&!fDesde&&!fHasta?C.ink:C.line),
-              background:filtro==="default"&&!fDesde&&!fHasta?C.ink:"#fff",
-              color:filtro==="default"&&!fDesde&&!fHasta?"#fff":C.ink}}>
+              border:"1px solid "+(filtro==="default"&&!fDesde&&!fHasta&&!fMes?C.ink:C.line),
+              background:filtro==="default"&&!fDesde&&!fHasta&&!fMes?C.ink:"#fff",
+              color:filtro==="default"&&!fDesde&&!fHasta&&!fMes?"#fff":C.ink}}>
             Vista general
           </button>
-          <button onClick={()=>{setFiltro("todos");setFDesde("");setFHasta("");}}
+          <button onClick={()=>{setFiltro("todos");setFDesde("");setFHasta("");setFMes("");}}
             style={{fontFamily:FONT,fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:20,cursor:"pointer",
-              border:"1px solid "+(filtro==="todos"&&!fDesde&&!fHasta?C.grey:C.line),
-              background:filtro==="todos"&&!fDesde&&!fHasta?C.grey:"#fff",
-              color:filtro==="todos"&&!fDesde&&!fHasta?"#fff":C.ink}}>
+              border:"1px solid "+(filtro==="todos"&&!fDesde&&!fHasta&&!fMes?C.grey:C.line),
+              background:filtro==="todos"&&!fDesde&&!fHasta&&!fMes?C.grey:"#fff",
+              color:filtro==="todos"&&!fDesde&&!fHasta&&!fMes?"#fff":C.ink}}>
             Todos <span style={{fontSize:10,opacity:.7}}>{activos.length}</span>
           </button>
         </div>
@@ -2044,11 +2052,15 @@ function Renovaciones() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <span style={{fontSize:11,fontWeight:600,color:C.mut}}>Desde</span>
-          <Input type="date" value={fDesde} onChange={e=>setFDesde(e.target.value)} style={{width:140,fontSize:12}}/>
+          <Input type="date" value={fDesde} onChange={e=>{setFDesde(e.target.value);setFMes("");}} style={{width:140,fontSize:12}}/>
           <span style={{fontSize:11,fontWeight:600,color:C.mut}}>Hasta</span>
-          <Input type="date" value={fHasta} onChange={e=>setFHasta(e.target.value)} style={{width:140,fontSize:12}}/>
+          <Input type="date" value={fHasta} onChange={e=>{setFHasta(e.target.value);setFMes("");}} style={{width:140,fontSize:12}}/>
           {(fDesde||fHasta)&&<Btn small kind="ghost" onClick={()=>{setFDesde("");setFHasta("");}}>✕</Btn>}
         </div>
+        <Sel value={fMes} onChange={e=>{setFMes(e.target.value);if(e.target.value){setFDesde("");setFHasta("");setFiltro("mes");}else{setFiltro("default");}}} style={{width:140}}>
+          <option value="">Mes</option>
+          {MESES.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
+        </Sel>
         <Sel value={fCm} onChange={e=>setFCm(e.target.value)} style={{width:200}}>
           <option value="">Todas las comercializadoras</option>
           {comercializadorasConRenov.map(id=>{
