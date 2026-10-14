@@ -108,6 +108,13 @@ const hoy = () => new Date().toISOString().slice(0,10);
 const fmtF = iso => iso ? new Date(iso+"T00:00:00").toLocaleDateString("es-ES") : "—";
 const fmtE = n => (n??0).toLocaleString("es-ES",{style:"currency",currency:"EUR"});
 const addM  = m => { const d=new Date(); d.setMonth(d.getMonth()+m); return d.toISOString().slice(0,10); };
+// El responsable operativo vive en el contrato. El fallback solo mantiene
+// compatibilidad mientras se aplica la migracion que rellena la cartera actual.
+const comercialCarteraId = (ct,datos) => {
+  if(Object.prototype.hasOwnProperty.call(ct||{},"comercial_cartera_id")) return ct.comercial_cartera_id||"";
+  return datos.clientes.find(c=>c.id===ct?.cliente_id)?.comercial_id||"";
+};
+const comercialCartera = (ct,datos) => datos.usuarios.find(u=>u.id===comercialCarteraId(ct,datos));
 // Función genérica de ordenación para tablas (acepta campo y dirección)
 const sortBy = (arr,campo,dir,accessor) => [...arr].sort((a,b)=>{
   const va=accessor?accessor(a,campo):a[campo], vb=accessor?accessor(b,campo):b[campo];
@@ -366,7 +373,7 @@ function AccionesContrato({ct}) {
     if (estado==="activado") {
       const dm=ct.duracion_meses||12;
       upd.fecha_activacion=hoy(); upd.fecha_renovacion=addM(dm); upd.fecha_baja=null;
-      if (ct.comision_calculada===null||ct.comision_calculada===undefined){
+      if (comercialCarteraId(ct,datos)&&(ct.comision_calculada===null||ct.comision_calculada===undefined)){
         const r=calcularComisionCt(ct,datos);
         if(r) upd.comision_calculada=r.comision;
       }
@@ -457,10 +464,10 @@ function Dashboard() {
   const esActivo=e=>["activado","Activo","Activo FTR","pdte_renovar"].includes(e);
   const esEnviado=e=>["enviado","en_tramite","En Trámite","Nuevo","Pendiente de Firma","Pendiente CC"].includes(e);
   const esBaja=e=>["baja","Baja","Baja CC"].includes(e);
-  const activos=cts.filter(c=>esActivo(c.estado));const enviados=cts.filter(c=>esEnviado(c.estado));const bajas=cts.filter(c=>esBaja(c.estado)&&diasBaja(c)>=0);
+  const activos=cts.filter(c=>esActivo(c.estado));const renovables=activos.filter(c=>comercialCarteraId(c,datos));const enviados=cts.filter(c=>esEnviado(c.estado));const bajas=cts.filter(c=>esBaja(c.estado)&&diasBaja(c)>=0);
   const hoyD=new Date();const diasH=c=>Math.ceil((new Date(c.fecha_renovacion+"T00:00:00")-hoyD)/86400000);
-  const renov30=activos.filter(c=>c.fecha_renovacion&&diasH(c)<=30&&diasH(c)>0);const renov60=activos.filter(c=>c.fecha_renovacion&&diasH(c)<=60&&diasH(c)>0);const renov90=activos.filter(c=>c.fecha_renovacion&&diasH(c)<=90&&diasH(c)>0);
-  const vencidos=activos.filter(c=>c.fecha_renovacion&&new Date(c.fecha_renovacion+"T00:00:00")<hoyD);const vencidos60=vencidos.filter(c=>diasH(c)>=-60);
+  const renov30=renovables.filter(c=>c.fecha_renovacion&&diasH(c)<=30&&diasH(c)>0);const renov60=renovables.filter(c=>c.fecha_renovacion&&diasH(c)<=60&&diasH(c)>0);const renov90=renovables.filter(c=>c.fecha_renovacion&&diasH(c)<=90&&diasH(c)>0);
+  const vencidos=renovables.filter(c=>c.fecha_renovacion&&new Date(c.fecha_renovacion+"T00:00:00")<hoyD);const vencidos60=vencidos.filter(c=>diasH(c)>=-60);
   const ticketsAbiertos=(datos.tickets||[]).filter(t=>t.estado!=="cerrado");const ticketsAlta=(datos.tickets||[]).filter(t=>t.prioridad==="alta"&&t.estado!=="cerrado");
   const discrep=datos.lineas.filter(ln=>{if(ln.concepto!=="Comisión")return false;const ct=datos.contratos.find(c=>c.id===ln.contrato_id);const pr=datos.productos.find(p=>p.id===ct?.producto_id);return pr&&Math.abs(ln.importe-(pr.comision_bruta??0))>0.005;});
   const porCm={};activos.forEach(c=>{const cm=datos.comercializadoras.find(x=>x.id===c.comercializadora_id);porCm[cm?.nombre||"Otra"]=(porCm[cm?.nombre||"Otra"]||0)+1;});
@@ -468,7 +475,7 @@ function Dashboard() {
   const nLuz=activos.filter(c=>c.tipo==="luz").length;const nGas=activos.filter(c=>c.tipo==="gas").length;
   const pctLuz=activos.length?(nLuz/activos.length*100).toFixed(0):0;const pctGas=activos.length?(nGas/activos.length*100).toFixed(0):0;
   const porEstado={};cts.forEach(c=>{const e=ESTADOS[c.estado]||{label:c.estado};porEstado[e.label||c.estado]=(porEstado[e.label||c.estado]||0)+1;});const topEstados=Object.entries(porEstado).sort((a,b)=>b[1]-a[1]);
-  const porComercial={};activos.forEach(c=>{const cl=datos.clientes.find(x=>x.id===c.cliente_id);const u=datos.usuarios.find(x=>x.id===cl?.comercial_id);porComercial[u?.nombre||"Sin asignar"]=(porComercial[u?.nombre||"Sin asignar"]||0)+1;});
+  const porComercial={};activos.forEach(c=>{const u=comercialCartera(c,datos);porComercial[u?.nombre||"Cartera pendiente"]=(porComercial[u?.nombre||"Cartera pendiente"]||0)+1;});
   const topComercial=Object.entries(porComercial).sort((a,b)=>b[1]-a[1]);const maxComercial=topComercial[0]?.[1]||1;
   const KPI=({n,label,sub,fg,bg,icon:Icon,onClick})=>(<Card style={{padding:0,flex:1,minWidth:155,cursor:onClick?"pointer":"default",overflow:"hidden",borderTop:"3px solid "+fg}} onClick={onClick}><div style={{display:"flex",alignItems:"center",gap:14,padding:"18px 20px"}}><div style={{width:48,height:48,borderRadius:12,background:bg||fg+"14",display:"flex",alignItems:"center",justifyContent:"center"}}>{Icon&&<Icon size={22} style={{color:fg}}/>}</div><div><div style={{fontSize:28,fontWeight:800,color:C.ink,letterSpacing:-1,lineHeight:1}}>{n}</div><div style={{fontSize:12,fontWeight:600,color:C.mut,marginTop:3}}>{label}</div>{sub&&<div style={{fontSize:11,color:fg,fontWeight:600,marginTop:1}}>{sub}</div>}</div></div></Card>);
   const MiniBar=({label,count,max,color})=>(<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:130,fontSize:12,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}} title={label}>{label}</div><div style={{flex:1,height:22,background:"#f3f4f6",borderRadius:6,overflow:"hidden"}}><div style={{height:"100%",width:(count/max*100)+"%",background:color||"linear-gradient(90deg,#2563eb,#3b82f6)",borderRadius:6,transition:"width .4s ease"}}/></div><div style={{fontSize:13,fontWeight:700,width:40,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{count}</div></div>);
@@ -506,8 +513,11 @@ function Clientes() {
   const moverComercial=async()=>{
     if(!moverA||sel.size===0)return;
     setMoviendo(true);
-    for(const cid of sel){await db.upd("clientes","id=eq."+cid,{comercial_id:moverA});}
-    await recargar("clientes");setSelIds(new Set());setMoverA("");setMoviendo(false);
+    for(const cid of sel){
+      await db.upd("clientes","id=eq."+cid,{comercial_id:moverA});
+      await db.upd("contratos","cliente_id=eq."+cid,{comercial_cartera_id:moverA});
+    }
+    await Promise.all([recargar("clientes"),recargar("contratos")]);setSelIds(new Set());setMoverA("");setMoviendo(false);
   };
   return (
     <div>
@@ -639,7 +649,8 @@ function ClienteDetalle({id}) {
                     if(!window.confirm(`¿Cambiar el comercial de este cliente de ${actual} a ${nuevo}?\n\nAfecta a las comisiones de sus contratos.`)){
                       e.target.value=c.comercial_id||"";return;}
                     await db.upd("clientes","id=eq."+id,{comercial_id:nuevoId});
-                    await recargar("clientes");
+                    await db.upd("contratos","cliente_id=eq."+id,{comercial_cartera_id:nuevoId});
+                    await Promise.all([recargar("clientes"),recargar("contratos")]);
                   }} style={{width:180}}>
                   {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
                 </Sel>
@@ -726,7 +737,7 @@ function ContratoDetalle({id, volver}) {
   const cm=datos.comercializadoras.find(x=>x.id===ct.comercializadora_id);
   const pr=datos.productos.find(x=>x.id===ct.producto_id);
   const pv=datos.proveedores.find(x=>x.id===cm?.proveedor_id);
-  const com=datos.usuarios.find(u=>u.id===cl?.comercial_id);
+  const com=comercialCartera(ct,datos);
   const dias=diasBaja(ct);
   const tieneTramos=tramosDeProducto(ct.producto_id,datos).length>0;
   const foto=ct.comision_calculada;
@@ -776,7 +787,16 @@ function ContratoDetalle({id, volver}) {
           <CampoFicha label="Producto" valor={pr?.nombre}/>
           <CampoFicha label="Tarifa" valor={ct.tarifa||pr?.tarifa}/>
           <CampoFicha label="Proveedor" valor={pv?.nombre}/>
-          <CampoFicha label="Comercial" valor={com?.nombre}/>
+           <div>
+             <div style={{fontSize:11,color:C.mut,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Comercial Cartera</div>
+             {can.cambiarComercial(yo)
+               ?<Sel value={comercialCarteraId(ct,datos)} onChange={async e=>{await db.upd("contratos","id=eq."+ct.id,{comercial_cartera_id:e.target.value||null});await recargar("contratos");}} style={{width:"100%"}}>
+                  <option value="">Cartera pendiente</option>
+                  {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
+                </Sel>
+               :<div style={{fontSize:14,fontWeight:500}}>{com?.nombre||"Cartera pendiente"}</div>}
+           </div>
+           <CampoFicha label="Comercial Import" valor={ct.comercial_import||"—"}/>
           <CampoFicha label="ID iNergia" valor={ct.id_inergia||"—"}/>
           <CampoFicha label="Código" valor={ct.codigo||ct.referencia||"—"}/>
           <CampoFicha label="Tipo solicitud" valor={ct.tiposol||"—"}/>
@@ -915,16 +935,16 @@ function ContratoDetalle({id, volver}) {
 function exportarContratosExcel(listaFiltrada, datos){
   // exportamos TODOS los contratos, no solo los filtrados visibles
   const cts=datos.contratos;
-  const cab=["CUPS","Cliente","CIF/NIF","Comercializadora","Producto","Tarifa","Tipo","Estado","Situacion","id_inergia","Potencia P1","Consumo kWh","Fecha activacion","Fecha renovacion","Comercial","IBAN"];
+  const cab=["CUPS","Cliente","CIF/NIF","Comercializadora","Producto","Tarifa","Tipo","Estado","Situacion","id_inergia","Potencia P1","Consumo kWh","Fecha activacion","Fecha renovacion","Comercial Cartera","Comercial Import","IBAN"];
   const esc=v=>{const s=String(v==null?"":v);return /[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
   const filas=cts.map(ct=>{
     const cl=datos.clientes.find(x=>x.id===ct.cliente_id);
     const cm=datos.comercializadoras.find(x=>x.id===ct.comercializadora_id);
     const pr=datos.productos.find(x=>x.id===ct.producto_id);
-    const com=datos.usuarios.find(u=>u.id===cl?.comercial_id);
+    const com=comercialCartera(ct,datos);
     return [ct.cups,cl?.razon_social,cl?.cif||cl?.nif,cm?.nombre,pr?.nombre,ct.tarifa,ct.tipo,
       ct.estado,ct.situacion,ct.id_inergia,ct.potencia_p1,ct.consumo_anual,
-      ct.fecha_activacion,ct.fecha_renovacion,com?.nombre,ct.iban].map(esc).join(";");
+      ct.fecha_activacion,ct.fecha_renovacion,com?.nombre||"Cartera pendiente",ct.comercial_import||"",ct.iban].map(esc).join(";");
   });
   const csv="\uFEFF"+cab.join(";")+"\n"+filas.join("\n"); // BOM para que Excel respete acentos
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
@@ -943,14 +963,17 @@ function Contratos() {
   const list=datos.contratos.filter(c=>{
     const cl=datos.clientes.find(x=>x.id===c.cliente_id);
     const ok=!busq||(cl?.razon_social+c.cups).toLowerCase().includes(busq.toLowerCase());
-    if(fComercial&&cl?.comercial_id!==fComercial) return false;
+    const carteraId=comercialCarteraId(c,datos);
+    if(fComercial==="__pending__"&&carteraId) return false;
+    if(fComercial&&fComercial!=="__pending__"&&carteraId!==fComercial) return false;
     return ok&&(!fEstado||c.estado===fEstado);
   });
   const acc=(c,campo)=>{
     if(campo==="cliente") return datos.clientes.find(x=>x.id===c.cliente_id)?.razon_social||"";
     if(campo==="comercializadora") return datos.comercializadoras.find(x=>x.id===c.comercializadora_id)?.nombre||"";
     if(campo==="producto") return datos.productos.find(x=>x.id===c.producto_id)?.nombre||"";
-    if(campo==="comercial"){const cl=datos.clientes.find(x=>x.id===c.cliente_id);return datos.usuarios.find(u=>u.id===cl?.comercial_id)?.nombre||"";}
+    if(campo==="comercial") return comercialCartera(c,datos)?.nombre||"Cartera pendiente";
+    if(campo==="comercial_import") return c.comercial_import||"";
     if(campo==="estado_at") return c.estado_at||c.created_at||"";
     return c[campo];
   };
@@ -967,7 +990,8 @@ function Contratos() {
           {Object.entries(ESTADOS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
         </Sel>
         <Sel value={fComercial} onChange={e=>setFComercial(e.target.value)} style={{width:180}}>
-          <option value="">Todos los comerciales</option>
+          <option value="">Todos los comerciales de cartera</option>
+          <option value="__pending__">Comercial Cartera pendiente</option>
           {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
         </Sel>
         <Btn kind="ghost" onClick={()=>exportarContratosExcel(list,datos)}><Database size={14}/> Exportar a Excel</Btn>
@@ -987,7 +1011,8 @@ function Contratos() {
             <THSort campo="producto" orden={orden} setOrden={setOrden}>Producto</THSort>
             <THSort campo="estado" orden={orden} setOrden={setOrden}>Estado</THSort>
             <THSort campo="situacion" orden={orden} setOrden={setOrden}>Situación</THSort>
-            <THSort campo="comercial" orden={orden} setOrden={setOrden}>Comercial</THSort>
+            <THSort campo="comercial" orden={orden} setOrden={setOrden}>Comercial Cartera</THSort>
+            <THSort campo="comercial_import" orden={orden} setOrden={setOrden}>Comercial Import</THSort>
             <TH>Comisión</TH>
             <THSort campo="fecha_renovacion" orden={orden} setOrden={setOrden}>Renovación</THSort>
             <THSort campo="estado_at" orden={orden} setOrden={setOrden}>Última sync</THSort>
@@ -998,7 +1023,7 @@ function Contratos() {
               const cl=datos.clientes.find(x=>x.id===ct.cliente_id);
               const cm=datos.comercializadoras.find(x=>x.id===ct.comercializadora_id);
               const pr=datos.productos.find(x=>x.id===ct.producto_id);
-              const com=datos.usuarios.find(u=>u.id===cl?.comercial_id);
+              const com=comercialCartera(ct,datos);
               const tieneTramos=tramosDeProducto(ct.producto_id,datos).length>0;
               const foto=ct.comision_calculada;
               const est=calcularComisionCt(ct,datos);
@@ -1011,7 +1036,8 @@ function Contratos() {
                   <TD center style={{maxWidth:200,whiteSpace:"normal",fontSize:12}}>{pr?.nombre}</TD>
                   <TD center><EstadoChip estado={ct.estado} dias={diasBaja(ct)}/></TD>
                   <TD center style={{fontSize:12,color:C.mut}}>{ct.situacion||"—"}</TD>
-                  <TD center style={{fontSize:12,color:C.mut}}>{com?.nombre}</TD>
+                  <TD center style={{fontSize:12,color:com?C.mut:C.warn,fontWeight:com?400:700}}>{com?.nombre||"Cartera pendiente"}</TD>
+                  <TD center style={{fontSize:12,color:C.mut}}>{ct.comercial_import||"—"}</TD>
                   <TD center>
                     {foto!==null&&foto!==undefined
                       ?<span style={{fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmtE(foto)}</span>
@@ -1027,7 +1053,7 @@ function Contratos() {
                 </tr>
               );
             })}
-            {sorted.length===0&&<tr><TD colSpan={12} style={{color:C.mut,textAlign:"center",padding:20}}>Sin contratos en este filtro.</TD></tr>}
+            {sorted.length===0&&<tr><TD colSpan={13} style={{color:C.mut,textAlign:"center",padding:20}}>Sin contratos en este filtro.</TD></tr>}
           </tbody>
         </table>
       </div>
@@ -1300,7 +1326,7 @@ function LiqDetalle({id}) {
   lins.forEach(ln=>{
     const ct=datos.contratos.find(c=>c.id===ln.contrato_id);
     const cl=datos.clientes.find(c=>c.id===ct?.cliente_id);
-    const u=datos.usuarios.find(x=>x.id===cl?.comercial_id);
+    const u=comercialCartera(ct,datos);
     if(!u)return;
     const pct=ln.pct_override??pctDe(u.id,ct.comercializadora_id);
     const imp=+(ln.importe*pct/100).toFixed(2);
@@ -1920,7 +1946,7 @@ function Renovaciones() {
 
   const hoy=new Date();
   const hoyStr=hoy.toISOString().slice(0,10);
-  const activos=datos.contratos.filter(c=>["activado","Activo","Activo FTR","pdte_renovar"].includes(c.estado)&&c.fecha_renovacion);
+  const activos=datos.contratos.filter(c=>["activado","Activo","Activo FTR","pdte_renovar"].includes(c.estado)&&c.fecha_renovacion&&comercialCarteraId(c,datos));
 
   // Helpers
   const diasHasta=c=>Math.ceil((new Date(c.fecha_renovacion+"T00:00:00")-hoy)/86400000);
@@ -1973,7 +1999,7 @@ function Renovaciones() {
 
   const lista=base.filter(c=>{
     if(fCm&&c.comercializadora_id!==fCm) return false;
-    if(fComercial){const cl=datos.clientes.find(x=>x.id===c.cliente_id);if(cl?.comercial_id!==fComercial) return false;}
+    if(fComercial&&comercialCarteraId(c,datos)!==fComercial) return false;
     if(!busq) return true;
     const cl=datos.clientes.find(x=>x.id===c.cliente_id);
     return (cl?.razon_social+c.cups).toLowerCase().includes(busq.toLowerCase());
@@ -1984,14 +2010,14 @@ function Renovaciones() {
     if(campo==="cif"){const cl=datos.clientes.find(x=>x.id===c.cliente_id);return cl?.cif||cl?.nif||"";}
     if(campo==="comercializadora") return datos.comercializadoras.find(x=>x.id===c.comercializadora_id)?.nombre||"";
     if(campo==="producto") return datos.productos.find(x=>x.id===c.producto_id)?.nombre||"";
-    if(campo==="comercial"){const cl=datos.clientes.find(x=>x.id===c.cliente_id);return datos.usuarios.find(u=>u.id===cl?.comercial_id)?.nombre||"";}
+    if(campo==="comercial") return comercialCartera(c,datos)?.nombre||"";
     if(campo==="diasR") return diasHasta(c);
     return c[campo];
   };
   const sorted=sortBy(lista,orden.campo,orden.dir,acc);
 
   const comercializadorasConRenov=[...new Set(activos.map(c=>c.comercializadora_id))];
-  const comercialesConRenov=[...new Set(activos.map(c=>{const cl=datos.clientes.find(x=>x.id===c.cliente_id);return cl?.comercial_id;}).filter(Boolean))];
+  const comercialesConRenov=[...new Set(activos.map(c=>comercialCarteraId(c,datos)).filter(Boolean))];
 
   const TabBtn=({t})=>{
     const act=filtro===t.id&&!fDesde&&!fHasta&&!fMes;
@@ -2099,7 +2125,7 @@ function Renovaciones() {
               const cl=datos.clientes.find(x=>x.id===ct.cliente_id);
               const cm=datos.comercializadoras.find(x=>x.id===ct.comercializadora_id);
               const pr=datos.productos.find(x=>x.id===ct.producto_id);
-              const com=datos.usuarios.find(u=>u.id===cl?.comercial_id);
+              const com=comercialCartera(ct,datos);
               const diasR=diasHasta(ct);
               const colorDias=diasR<0?"#000":diasR<=30?C.err:diasR<=60?C.warn:C.info;
               return (
@@ -2275,7 +2301,7 @@ function ModalNuevoContrato() {
   };
 
   const guardar=async()=>{
-    const base={cliente_id:f.cliente_id,estado:"borrador",id_inergia:null,duracion_meses:f.duracion_meses,permanencia:f.permanencia,renovacion_auto:f.renovacion_auto,cambio_tit:f.cambio_tit,cambio_pot:f.cambio_pot,facturae:f.facturae,iban:f.iban,observaciones:f.observaciones,cnae:f.cnae,autoconsumo:f.autoconsumo,servicios:f.servicios,canal:f.canal,calle_cups:f.direccion_cups,numero_cups:f.numero_cups,planta_cups:f.planta_cups,puerta_cups:f.letra_cups,aclarador_cups:f.aclarador_cups,codpostal_cups:f.codpostal_cups,provincia_cups:f.provincia_cups,localidad_cups:f.localidad_cups};
+    const base={cliente_id:f.cliente_id,comercial_cartera_id:cl?.comercial_id||yo?.id||null,comercial_import:null,estado:"borrador",id_inergia:null,duracion_meses:f.duracion_meses,permanencia:f.permanencia,renovacion_auto:f.renovacion_auto,cambio_tit:f.cambio_tit,cambio_pot:f.cambio_pot,facturae:f.facturae,iban:f.iban,observaciones:f.observaciones,cnae:f.cnae,autoconsumo:f.autoconsumo,servicios:f.servicios,canal:f.canal,calle_cups:f.direccion_cups,numero_cups:f.numero_cups,planta_cups:f.planta_cups,puerta_cups:f.letra_cups,aclarador_cups:f.aclarador_cups,codpostal_cups:f.codpostal_cups,provincia_cups:f.provincia_cups,localidad_cups:f.localidad_cups};
     if(esLuz)await db.ins("contratos",{...base,tipo:"luz",cups:f.cups_luz,comercializadora_id:f.comercializadora_luz,producto_id:prIdLuz,tiposol:f.tiposol_luz,potencia_p1:parseFloat(f.potencia_p1)||0,potencia_p2:parseFloat(f.potencia_p2)||0,potencia_p3:parseFloat(f.potencia_p3)||0,potencia_p4:parseFloat(f.potencia_p4)||0,potencia_p5:parseFloat(f.potencia_p5)||0,potencia_p6:parseFloat(f.potencia_p6)||0});
     if(esGas)await db.ins("contratos",{...base,tipo:"gas",cups:f.cups_gas,comercializadora_id:f.comercializadora_gas,producto_id:prIdGas,tiposol:f.tiposol_gas});
     await recargar("contratos"); setModal(null);
@@ -2383,11 +2409,11 @@ function ModalEnviarInergia() {
   const [resultado,setResultado]=useState(null);
   const ct=datos.contratos.find(x=>x.id===modal.ct.id);
   const cl=datos.clientes.find(x=>x.id===ct?.cliente_id);
-  const com=datos.usuarios.find(x=>x.id===cl?.comercial_id);
+  const com=comercialCartera(ct,datos);
   const pr=datos.productos.find(x=>x.id===ct?.producto_id);
   const cm=datos.comercializadoras.find(x=>x.id===ct?.comercializadora_id);
   const pv=datos.proveedores.find(x=>x.id===cm?.proveedor_id);
-  const cid=datos.crm_ids.find(x=>x.usuario_id===com?.id&&x.proveedor_id===pv?.id&&x.crm_id) || datos.crm_ids.find(x=>x.proveedor_id===pv?.id&&x.crm_id);
+  const cid=com&&(datos.crm_ids.find(x=>x.usuario_id===com.id&&x.proveedor_id===pv?.id&&x.crm_id) || datos.crm_ids.find(x=>x.proveedor_id===pv?.id&&x.crm_id));
   const payload={suministro:ct?.tipo==="gas"?"GAS":"LUZ",cups:ct?.cups||"",dni:cl?.cif||cl?.nif||"",crm_id:cid?.crm_id||"",nombre:cl?.razon_social||"",ape1:cl?.ape1||"",ape2:cl?.ape2||"",calle:cl?.tipo_via?cl.tipo_via+" "+cl.direccion:cl?.direccion||"",numero:cl?.numero||"",codpostal:cl?.codpostal||"",localidad:cl?.localidad||"",representante:cl?.representante||cl?.contacto||"",cif_representante:cl?.dni_representante||"",telefono:cl?.telefono||"",email:cl?.email||"",iban:ct?.iban||"",cambio_tit:ct?.cambio_tit||"NO",cambio_pot:ct?.cambio_pot||"NO",permanencia:ct?.permanencia||"NO",facturae:ct?.facturae??1,autoconsumo:ct?.autoconsumo||"NO",servicios:ct?.servicios||"",canal:ct?.canal||"",cnae:ct?.cnae||"",tarifa:pr?.tarifa||"",potencia_contratada:ct?.potencia_p1||0,potencia_contratada_p2:ct?.potencia_p2||0,potencia_contratada_p3:ct?.potencia_p3||0,potencia_contratada_p4:ct?.potencia_p4||0,potencia_contratada_p5:ct?.potencia_p5||0,potencia_contratada_p6:ct?.potencia_p6||0,id_producto:pr?.id_inergia||pr?.id_inergia_int||0,tiposol:ct?.tiposol||"C1",observaciones:ct?.observaciones||"Alta desde CRM INLUZGAS",calle_cups:ct?.tipo_via_cups?ct.tipo_via_cups+" "+ct.direccion_cups:ct?.direccion_cups||"",numero_cups:ct?.numero_cups||"",codpostal_cups:ct?.codpostal_cups||"",localidad_cups:ct?.localidad_cups||"",_contrato_id:ct?.id};
   const faltan=[["cups","CUPS"],["dni","CIF del titular"],["nombre","Razón social"],["crm_id","ID del comercial en "+pv?.nombre],["tarifa","Tarifa"],["id_producto","ID producto en iNergia"]].filter(([k])=>!payload[k]||payload[k]===0).map(([,l])=>l);
   const enviar=async()=>{
@@ -2427,7 +2453,7 @@ function ModalNuevaLiq() {
 function ModalNuevaLinea() {
   const {datos,recargar,setModal,modal}=useContext(Ctx);
   const liq=datos.liquidaciones.find(x=>x.id===modal.liqId);
-  const cts=datos.contratos.filter(c=>{const pv=datos.proveedores.find(p=>p.id===datos.comercializadoras.find(cm=>cm.id===c.comercializadora_id)?.proveedor_id);return pv?.id===liq?.proveedor_id&&["activado","baja"].includes(c.estado);});
+  const cts=datos.contratos.filter(c=>{const pv=datos.proveedores.find(p=>p.id===datos.comercializadoras.find(cm=>cm.id===c.comercializadora_id)?.proveedor_id);return pv?.id===liq?.proveedor_id&&["activado","baja"].includes(c.estado)&&comercialCarteraId(c,datos);});
   const [f,setF]=useState({contrato_id:cts[0]?.id||"",concepto:"Comisión",importe:"",pct_override:""});
   const prev=datos.productos.find(p=>p.id===datos.contratos.find(c=>c.id===f.contrato_id)?.producto_id)?.comision_bruta;
   return (
@@ -2601,7 +2627,8 @@ function ModalRenovar() {
         const nuevaFechaRen=new Date();
         nuevaFechaRen.setMonth(nuevaFechaRen.getMonth()+meses);
         await db.ins("contratos",{
-          cliente_id:ct.cliente_id, cups:ct.cups, tipo:ct.tipo,
+          cliente_id:ct.cliente_id, comercial_cartera_id:comercialCarteraId(ct,datos)||null,
+          comercial_import:ct.comercial_import||null, cups:ct.cups, tipo:ct.tipo,
           comercializadora_id:f.comercializadora_id, producto_id:prId,
           estado:"borrador", tarifa:datos.productos.find(p=>p.id===prId)?.tarifa||ct.tarifa,
           duracion_meses:meses,
