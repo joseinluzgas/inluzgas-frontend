@@ -115,6 +115,41 @@ const comercialCarteraId = (ct,datos) => {
   return datos.clientes.find(c=>c.id===ct?.cliente_id)?.comercial_id||"";
 };
 const comercialCartera = (ct,datos) => datos.usuarios.find(u=>u.id===comercialCarteraId(ct,datos));
+// Un CUPS identifica el suministro. Los sufijos fronterizos 0F/1P no crean
+// suministros distintos: las contrataciones anteriores se muestran como historial.
+const cupsBase = cups => {
+  const c=String(cups||"").toUpperCase().replace(/\s/g,"");
+  return /^ES\d{16}[A-Z]{2}\d[A-Z]$/.test(c)?c.slice(0,20):c;
+};
+const fechaContrato = ct => {
+  // La versión la determina la fecha de origen del contrato, no una baja o
+  // sincronización posterior que podría hacer parecer nuevo a un histórico.
+  const valor=[ct.fecha_registro,ct.fecha_activacion,ct.fecha_envio,ct.created_at,ct.estado_at,ct.fecha_baja].find(Boolean);
+  if(!valor) return 0;
+  const fecha=Date.parse(String(valor).length===10?valor+"T00:00:00":valor);
+  return Number.isFinite(fecha)?fecha:0;
+};
+const compararVersionesContrato = (a,b) => {
+  const porFecha=fechaContrato(b)-fechaContrato(a);
+  if(porFecha) return porFecha;
+  const ca=Number(a.codigo||a.id_inergia||0),cb=Number(b.codigo||b.id_inergia||0);
+  if(Number.isFinite(ca)&&Number.isFinite(cb)&&ca!==cb) return cb-ca;
+  return String(b.id||"").localeCompare(String(a.id||""));
+};
+const versionesDelCups = (ct,contratos) => {
+  const clave=cupsBase(ct?.cups);
+  if(!clave) return ct?[ct]:[];
+  return contratos.filter(x=>cupsBase(x.cups)===clave).sort(compararVersionesContrato);
+};
+const contratosActuales = contratos => {
+  const grupos=new Map();
+  for(const ct of contratos||[]){
+    const clave=cupsBase(ct.cups)||("__"+ct.id);
+    if(!grupos.has(clave)) grupos.set(clave,[]);
+    grupos.get(clave).push(ct);
+  }
+  return [...grupos.values()].map(v=>v.sort(compararVersionesContrato)[0]);
+};
 // Función genérica de ordenación para tablas (acepta campo y dirección)
 const sortBy = (arr,campo,dir,accessor) => [...arr].sort((a,b)=>{
   const va=accessor?accessor(a,campo):a[campo], vb=accessor?accessor(b,campo):b[campo];
@@ -460,7 +495,8 @@ function AccionesContrato({ct}) {
 
 function Dashboard() {
   const {yo,datos,recargar,setSel,setVista}=useContext(Ctx);
-  const cts=datos.contratos;
+  const cts=contratosActuales(datos.contratos);
+  const nHistoricos=datos.contratos.length-cts.length;
   const esActivo=e=>["activado","Activo","Activo FTR","pdte_renovar"].includes(e);
   const esEnviado=e=>["enviado","en_tramite","En Trámite","Nuevo","Pendiente de Firma","Pendiente CC"].includes(e);
   const esBaja=e=>["baja","Baja","Baja CC"].includes(e);
@@ -482,7 +518,7 @@ function Dashboard() {
   return (
     <div>
       <div style={{marginBottom:24,display:"flex",justifyContent:"space-between",alignItems:"flex-end",flexWrap:"wrap",gap:12}}><div><div style={{fontSize:24,fontWeight:800,letterSpacing:-0.5}}>Hola, {yo.nombre.split(" ")[0]} 👋</div><div style={{fontSize:13,color:C.mut}}>{new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div></div><div style={{display:"flex",gap:8}}>{vencidos60.length>0&&<Badge fg={C.err} bg={C.errBg}>⚠ {vencidos60.length} renovaciones vencidas</Badge>}{ticketsAlta.length>0&&<Badge fg="#7c3aed" bg="#ede9fe">🔥 {ticketsAlta.length} ticket{ticketsAlta.length>1?"s":""} prioridad alta</Badge>}</div></div>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:20}}><KPI n={datos.clientes.length} label="Clientes" fg="#2563eb" icon={Users}/><KPI n={activos.length} label="Contratos activos" sub={nLuz+" luz · "+nGas+" gas"} fg={C.ok} icon={Zap}/><KPI n={enviados.length} label="En trámite" fg={C.info} icon={Send}/><KPI n={cts.length} label="Contratos totales" fg="#6b7280" icon={FileText}/><KPI n={ticketsAbiertos.length} label="Tickets abiertos" fg={ticketsAbiertos.length>0?"#7c3aed":C.ok} icon={Ticket}/></div>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:20}}><KPI n={datos.clientes.length} label="Clientes" fg="#2563eb" icon={Users}/><KPI n={activos.length} label="Contratos activos" sub={nLuz+" luz · "+nGas+" gas"} fg={C.ok} icon={Zap}/><KPI n={enviados.length} label="En trámite" fg={C.info} icon={Send}/><KPI n={cts.length} label="Suministros" sub={nHistoricos+" contratos en histórico"} fg="#6b7280" icon={FileText}/><KPI n={ticketsAbiertos.length} label="Tickets abiertos" fg={ticketsAbiertos.length>0?"#7c3aed":C.ok} icon={Ticket}/></div>
       <Card style={{padding:0,marginBottom:20,overflow:"hidden"}}><div style={{padding:"16px 20px",fontWeight:700,fontSize:15,borderBottom:"1px solid "+C.line,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa"}}><span>📅 Renovaciones</span><Btn small kind="ghost" onClick={()=>{setSel(null);setVista("renovaciones");}}>Ver todas →</Btn></div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:0}}>{[{label:"Vencidas",n:vencidos60.length,color:C.err,sub:"últimos 60d"},{label:"30 días",n:renov30.length,color:C.err,sub:"próximas"},{label:"60 días",n:renov60.length,color:C.warn,sub:"próximas"},{label:"90 días",n:renov90.length,color:C.info,sub:"próximas"}].map((r,i)=>(<div key={i} style={{padding:"20px 24px",textAlign:"center",borderRight:i<3?"1px solid "+C.line:"none"}}><div style={{fontSize:36,fontWeight:800,color:r.color,lineHeight:1}}>{r.n}</div><div style={{fontSize:13,fontWeight:700,color:C.ink,marginTop:6}}>{r.label}</div><div style={{fontSize:11,color:C.mut,marginTop:2}}>{r.sub}</div></div>))}</div></Card>
       <div style={{display:"grid",gap:16,gridTemplateColumns:"2fr 1fr",marginBottom:20}}><Card style={{padding:0}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,background:"#fafafa"}}>Contratos activos por comercializadora</div><div style={{padding:"16px 18px"}}>{topCm.map(([n,c])=><MiniBar key={n} label={n} count={c} max={maxCm} color="linear-gradient(90deg,#2563eb,#60a5fa)"/>)}{topCm.length===0&&<div style={{fontSize:13,color:C.mut,textAlign:"center",padding:12}}>Sin datos</div>}</div></Card><div style={{display:"flex",flexDirection:"column",gap:16}}><Card style={{padding:"20px",textAlign:"center"}}><div style={{fontWeight:700,fontSize:14,marginBottom:16}}>Tipo de suministro</div><div style={{display:"flex",justifyContent:"center",marginBottom:12}}><div style={{width:72,height:72,borderRadius:"50%",background:"conic-gradient("+C.luz+" 0% "+pctLuz+"%, "+C.gas+" "+pctLuz+"% 100%)",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:48,height:48,borderRadius:"50%",background:"#fff"}}/></div></div><div style={{display:"flex",justifyContent:"center",gap:20}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:10,height:10,borderRadius:3,background:C.luz}}/><span style={{fontSize:13,fontWeight:600}}>{nLuz} Luz ({pctLuz}%)</span></div><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:10,height:10,borderRadius:3,background:C.gas}}/><span style={{fontSize:13,fontWeight:600}}>{nGas} Gas ({pctGas}%)</span></div></div></Card><Card style={{padding:0,flex:1}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,background:"#fafafa"}}>Por comercial</div><div style={{padding:"12px 18px"}}>{topComercial.map(([n,c])=><MiniBar key={n} label={n} count={c} max={maxComercial} color="linear-gradient(90deg,#059669,#34d399)"/>)}</div></Card></div></div>
       <div style={{display:"grid",gap:16,gridTemplateColumns:"1fr 1fr 1fr",marginBottom:20}}><Card style={{padding:0}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,background:"#fafafa"}}>Contratos por estado</div><div style={{padding:"12px 18px",maxHeight:280,overflowY:"auto"}}>{topEstados.map(([label,count])=>{const est=Object.values(ESTADOS).find(e=>e.label===label);return(<div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #f5f5f5"}}><Badge fg={est?.fg||C.mut} bg={est?.bg||C.greyBg}>{label}</Badge><span style={{fontSize:14,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{count}</span></div>);})}</div></Card><Card style={{padding:0}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa"}}><span>Bajas recuperables</span><Badge fg={bajas.length>0?C.warn:C.ok} bg={bajas.length>0?C.warnBg:C.okBg}>{bajas.length}</Badge></div>{bajas.length===0&&<div style={{padding:"24px 18px",fontSize:13,color:C.mut,textAlign:"center"}}>Sin bajas pendientes 👍</div>}<div style={{maxHeight:280,overflowY:"auto"}}>{bajas.slice(0,8).map(c=>{const cl=datos.clientes.find(x=>x.id===c.cliente_id);const cm=datos.comercializadoras.find(x=>x.id===c.comercializadora_id);return(<div key={c.id} style={{padding:"10px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,borderTop:"1px solid "+C.line}}><div><div style={{fontSize:13,fontWeight:600}}>{cl?.razon_social}</div><div style={{fontSize:11,color:C.mut}}>{cm?.nombre} · baja {fmtF(c.fecha_baja)}</div></div><Badge fg={C.warn} bg={C.warnBg}><Clock size={11}/> {diasBaja(c)}d</Badge></div>);})}</div></Card><Card style={{padding:0}}><div style={{padding:"14px 18px",fontWeight:700,fontSize:14,borderBottom:"1px solid "+C.line,background:"#fafafa"}}>Actividad reciente</div><div style={{maxHeight:280,overflowY:"auto"}}>{datos.eventos.slice(0,12).map(ev=>(<div key={ev.id} style={{padding:"8px 18px",borderTop:"1px solid "+C.line,display:"flex",gap:10,alignItems:"flex-start"}}><div style={{width:6,height:6,borderRadius:"50%",background:ev.tipo?.includes("error")?C.err:ev.tipo?.includes("sync")?C.info:C.ok,marginTop:6,flexShrink:0}}/><div><div style={{fontSize:12,fontWeight:600}}>{ev.tipo} <span style={{fontWeight:400,color:C.mut}}>· {ev.origen}</span></div><div style={{fontSize:11,color:C.mut}}>{ev.detalle?.slice(0,80)}</div><div style={{fontSize:10,color:C.mut,fontVariantNumeric:"tabular-nums"}}>{new Date(ev.created_at).toLocaleString("es-ES")}</div></div></div>))}{datos.eventos.length===0&&<div style={{padding:"24px 18px",fontSize:13,color:C.mut,textAlign:"center"}}>Sin eventos.</div>}</div></Card></div>
@@ -498,13 +534,14 @@ function Clientes() {
   const [sel,setSelIds]=useState(new Set());
   const [moverA,setMoverA]=useState("");
   const [moviendo,setMoviendo]=useState(false);
+  const ctsActuales=contratosActuales(datos.contratos);
   const list=datos.clientes.filter(c=>{
     if(fComercial&&c.comercial_id!==fComercial) return false;
     return (c.razon_social+c.cif+(c.nif||"")+(c.telefono||"")+(c.email||"")+(c.localidad||"")).toLowerCase().includes(busq.toLowerCase());
   });
   const acc=(c,campo)=>{
     if(campo==="comercial") return datos.usuarios.find(u=>u.id===c.comercial_id)?.nombre||"";
-    if(campo==="ncts") return datos.contratos.filter(x=>x.cliente_id===c.id).length;
+    if(campo==="ncts") return ctsActuales.filter(x=>x.cliente_id===c.id).length;
     return c[campo];
   };
   const sorted=sortBy(list,orden.campo,orden.dir,acc);
@@ -561,7 +598,7 @@ function Clientes() {
           <tbody>
             {sorted.map(c=>{
               const com=datos.usuarios.find(u=>u.id===c.comercial_id);
-              const ncts=datos.contratos.filter(x=>x.cliente_id===c.id).length;
+              const ncts=ctsActuales.filter(x=>x.cliente_id===c.id).length;
               return (
                 <tr key={c.id} style={{cursor:"pointer",background:sel.has(c.id)?C.infoBg:"transparent"}} onClick={()=>setSel({tipo:"cliente",id:c.id})}>
                   {can.cambiarComercial(yo)&&<TD onClick={e=>{e.stopPropagation();toggleSel(c.id);}}><input type="checkbox" checked={sel.has(c.id)} readOnly/></TD>}
@@ -596,7 +633,7 @@ function ClienteDetalle({id}) {
   const {yo,datos,recargar,setSel,setModal}=useContext(Ctx);
   const c=datos.clientes.find(x=>x.id===id);
   if(!c)return null;
-  const cts=datos.contratos.filter(x=>x.cliente_id===id);
+  const cts=contratosActuales(datos.contratos).filter(x=>x.cliente_id===id);
   const com=datos.usuarios.find(u=>u.id===c.comercial_id);
   const [editando,setEditando]=useState(false);
   const [f,setF]=useState({});
@@ -699,18 +736,19 @@ function ClienteDetalle({id}) {
         </div>
       </Card>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-        <div style={{fontWeight:700,fontSize:13}}>Contratos ({cts.length})</div>
+        <div style={{fontWeight:700,fontSize:13}}>Suministros ({cts.length})</div>
         <Btn small onClick={()=>setModal({t:"nuevoContrato",clienteId:id})}><Plus size={13}/> Alta de contrato</Btn>
       </div>
       <div style={{display:"grid",gap:12}}>
         {cts.map(ct=>{
           const cm=datos.comercializadoras.find(x=>x.id===ct.comercializadora_id);
           const pr=datos.productos.find(x=>x.id===ct.producto_id);
+          const nHist=versionesDelCups(ct,datos.contratos).length-1;
           return (
             <Card key={ct.id} style={{padding:14,borderLeft:"4px solid "+(ct.tipo==="luz"?C.luz:C.gas),cursor:"pointer"}} onClick={()=>setSel({tipo:"contrato",id:ct.id})}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
                 <div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><TipoChip tipo={ct.tipo}/><EstadoChip estado={ct.estado} dias={diasBaja(ct)}/></div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><TipoChip tipo={ct.tipo}/><EstadoChip estado={ct.estado} dias={diasBaja(ct)}/>{nHist>0&&<Badge fg={C.info} bg={C.infoBg}>{nHist} histórico{nHist>1?"s":""}</Badge>}</div>
                   <div style={{fontSize:13,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{ct.cups}</div>
                   <div style={{fontSize:11,color:C.mut}}>{cm?.nombre} · {pr?.nombre} · {fmtE(pr?.comision_bruta)}</div>
                   <div style={{fontSize:11,color:C.mut}}>Enviado {fmtF(ct.fecha_envio)} · Activado {fmtF(ct.fecha_activacion)} · Renovación {fmtF(ct.fecha_renovacion)}</div>
@@ -733,6 +771,9 @@ function ContratoDetalle({id, volver}) {
   const {yo,datos,recargar,setSel,setModal}=useContext(Ctx);
   const ct=datos.contratos.find(x=>x.id===id);
   if(!ct)return null;
+  const versiones=versionesDelCups(ct,datos.contratos);
+  const actual=versiones[0];
+  const esHistorico=actual?.id!==ct.id;
   const cl=datos.clientes.find(x=>x.id===ct.cliente_id);
   const cm=datos.comercializadoras.find(x=>x.id===ct.comercializadora_id);
   const pr=datos.productos.find(x=>x.id===ct.producto_id);
@@ -771,6 +812,7 @@ function ContratoDetalle({id, volver}) {
               <EstadoChip estado={ct.estado} dias={dias}/>
               {ct.situacion&&<Badge fg={C.mut} bg={C.greyBg}>{ct.situacion}</Badge>}
               {ct.no_sync&&<Badge fg="#92400e" bg={C.warnBg}>⛔ No sincronizar</Badge>}
+              {esHistorico&&<Badge fg={C.info} bg={C.infoBg}>Histórico</Badge>}
               {esApi?<Badge fg="#065f46" bg="#d1fae5">API · iNergia</Badge>:<Badge fg={C.mut} bg={C.greyBg}>Manual</Badge>}
             </div>
             <div style={{fontSize:20,fontWeight:800,letterSpacing:-0.4,fontVariantNumeric:"tabular-nums"}}>{ct.cups||"Sin CUPS"}</div>
@@ -778,7 +820,9 @@ function ContratoDetalle({id, volver}) {
               onClick={()=>setSel({tipo:"cliente",id:cl?.id})}>{cl?.razon_social} · {cl?.cif||cl?.nif}</div>
             {ct.updated_at&&<div style={{fontSize:11,color:C.mut,marginTop:4}}>Última modificación: {new Date(ct.updated_at).toLocaleString("es-ES")} · {esApi?"vía API":"manual"}</div>}
           </div>
-          <AccionesContrato ct={ct}/>
+          {esHistorico
+            ?<Btn small kind="ghost" onClick={()=>setSel({tipo:"contrato",id:actual.id})}>Ver contrato actual</Btn>
+            :<AccionesContrato ct={ct}/>}
         </div>
 
         {/* Grid de datos */}
@@ -789,7 +833,7 @@ function ContratoDetalle({id, volver}) {
           <CampoFicha label="Proveedor" valor={pv?.nombre}/>
            <div>
              <div style={{fontSize:11,color:C.mut,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Comercial Cartera</div>
-             {can.cambiarComercial(yo)
+             {can.cambiarComercial(yo)&&!esHistorico
                ?<Sel value={comercialCarteraId(ct,datos)} onChange={async e=>{await db.upd("contratos","id=eq."+ct.id,{comercial_cartera_id:e.target.value||null});await recargar("contratos");}} style={{width:"100%"}}>
                   <option value="">Cartera pendiente</option>
                   {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
@@ -800,6 +844,30 @@ function ContratoDetalle({id, volver}) {
           <CampoFicha label="ID iNergia" valor={ct.id_inergia||"—"}/>
           <CampoFicha label="Código" valor={ct.codigo||ct.referencia||"—"}/>
           <CampoFicha label="Tipo solicitud" valor={ct.tiposol||"—"}/>
+        </div>
+      </Card>
+
+      {/* Histórico del CUPS */}
+      <Card style={{padding:"18px 20px",marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:12}}>
+          <div style={{fontWeight:700,fontSize:13}}>Histórico del CUPS</div>
+          <Badge fg={C.info} bg={C.infoBg}>{versiones.length} contrato{versiones.length!==1?"s":""}</Badge>
+        </div>
+        <div style={{display:"grid",gap:8}}>
+          {versiones.map((v,i)=>{
+            const vcm=datos.comercializadoras.find(x=>x.id===v.comercializadora_id);
+            const vpr=datos.productos.find(x=>x.id===v.producto_id);
+            return (
+              <button key={v.id} onClick={()=>setSel({tipo:"contrato",id:v.id})}
+                style={{fontFamily:FONT,width:"100%",display:"grid",gridTemplateColumns:"minmax(120px,1.4fr) minmax(120px,1fr) minmax(110px,.8fr) minmax(150px,1.2fr) auto",gap:12,alignItems:"center",padding:"10px 12px",border:"1px solid "+(v.id===ct.id?C.info:C.line),borderRadius:8,background:v.id===ct.id?C.infoBg:"#fff",color:C.ink,cursor:"pointer",textAlign:"left"}}>
+                <span><span style={{display:"block",fontSize:12,fontWeight:700}}>{vcm?.nombre||"Sin comercializadora"}</span><span style={{display:"block",fontSize:11,color:C.mut}}>{vpr?.nombre||v.tarifa||"Sin producto"}</span></span>
+                <span><EstadoChip estado={v.estado} dias={diasBaja(v)}/></span>
+                <span style={{fontSize:12,color:C.mut}}>Código {v.codigo||v.id_inergia||"—"}</span>
+                <span style={{fontSize:11,color:C.mut}}>Registro {fmtF(v.fecha_registro)} · Activación {fmtF(v.fecha_activacion)}{v.fecha_baja?" · Baja "+fmtF(v.fecha_baja):""}</span>
+                <Badge fg={i===0?C.ok:C.grey} bg={i===0?C.okBg:C.greyBg}>{i===0?"Actual":"Histórico"}</Badge>
+              </button>
+            );
+          })}
         </div>
       </Card>
 
@@ -907,7 +975,7 @@ function ContratoDetalle({id, volver}) {
       </Card>
 
       {/* Renovación */}
-      {esActivo&&(
+      {esActivo&&!esHistorico&&(
         <Card style={{padding:"18px 20px",marginBottom:16,borderLeft:"4px solid "+C.warn}}>
           <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Renovación</div>
           <div style={{fontSize:13,color:C.mut,marginBottom:14}}>
@@ -933,9 +1001,9 @@ function ContratoDetalle({id, volver}) {
 
 // Exporta los contratos a un archivo CSV (se abre en Excel) para cruzar con el Excel manual
 function exportarContratosExcel(listaFiltrada, datos){
-  // exportamos TODOS los contratos, no solo los filtrados visibles
-  const cts=datos.contratos;
-  const cab=["CUPS","Cliente","CIF/NIF","Comercializadora","Producto","Tarifa","Tipo","Estado","Situacion","id_inergia","Potencia P1","Consumo kWh","Fecha activacion","Fecha renovacion","Comercial Cartera","Comercial Import","IBAN"];
+  // Una fila por suministro; las versiones anteriores siguen disponibles en su histórico.
+  const cts=contratosActuales(datos.contratos);
+  const cab=["CUPS","Cliente","CIF/NIF","Comercializadora","Producto","Tarifa","Tipo","Estado","Situacion","id_inergia","Potencia P1","Consumo kWh","Fecha activacion","Fecha renovacion","Comercial Cartera","Comercial Import","Contratos historicos","IBAN"];
   const esc=v=>{const s=String(v==null?"":v);return /[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
   const filas=cts.map(ct=>{
     const cl=datos.clientes.find(x=>x.id===ct.cliente_id);
@@ -944,7 +1012,7 @@ function exportarContratosExcel(listaFiltrada, datos){
     const com=comercialCartera(ct,datos);
     return [ct.cups,cl?.razon_social,cl?.cif||cl?.nif,cm?.nombre,pr?.nombre,ct.tarifa,ct.tipo,
       ct.estado,ct.situacion,ct.id_inergia,ct.potencia_p1,ct.consumo_anual,
-      ct.fecha_activacion,ct.fecha_renovacion,com?.nombre||"Cartera pendiente",ct.comercial_import||"",ct.iban].map(esc).join(";");
+      ct.fecha_activacion,ct.fecha_renovacion,com?.nombre||"Cartera pendiente",ct.comercial_import||"",versionesDelCups(ct,datos.contratos).length-1,ct.iban].map(esc).join(";");
   });
   const csv="\uFEFF"+cab.join(";")+"\n"+filas.join("\n"); // BOM para que Excel respete acentos
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
@@ -960,7 +1028,9 @@ function Contratos() {
   const [fEstado,setFEstado]=useState("");
   const [fComercial,setFComercial]=useState("");
   const [orden,setOrden]=useState({campo:"estado_at",dir:-1});
-  const list=datos.contratos.filter(c=>{
+  const actuales=contratosActuales(datos.contratos);
+  const nHistoricos=datos.contratos.length-actuales.length;
+  const list=actuales.filter(c=>{
     const cl=datos.clientes.find(x=>x.id===c.cliente_id);
     const ok=!busq||(cl?.razon_social+c.cups).toLowerCase().includes(busq.toLowerCase());
     const carteraId=comercialCarteraId(c,datos);
@@ -998,8 +1068,8 @@ function Contratos() {
         <Btn onClick={()=>setModal({t:"nuevoContrato"})}><Plus size={14}/> Alta de contrato</Btn>
       </div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-        <div style={{fontSize:12,color:C.mut}}>{sorted.length} contratos{sorted.length>200?" · mostrando 200":""}</div>
-        <div style={{fontSize:13,fontWeight:600,color:C.mut}}>{datos.contratos.length} contratos totales</div>
+        <div style={{fontSize:12,color:C.mut}}>{sorted.length} suministros{sorted.length>200?" · mostrando 200":""}</div>
+        <div style={{fontSize:13,fontWeight:600,color:C.mut}}>{actuales.length} suministros · {nHistoricos} contratos en histórico</div>
       </div>
       <div style={{overflowX:"auto",border:"1px solid "+C.line,borderRadius:10,background:C.panel}}>
         <table style={{width:"100%",minWidth:1400,borderCollapse:"collapse",whiteSpace:"nowrap"}}>
@@ -1030,7 +1100,7 @@ function Contratos() {
               return (
                 <tr key={ct.id} style={{cursor:"pointer"}} onClick={()=>setSel({tipo:"contrato",id:ct.id})}>
                   <TD center style={{fontWeight:600,maxWidth:220,whiteSpace:"normal"}}>{cl?.razon_social||"—"}</TD>
-                  <TD center style={{fontVariantNumeric:"tabular-nums",fontSize:12}}>{ct.cups}</TD>
+                  <TD center style={{fontVariantNumeric:"tabular-nums",fontSize:12}}>{ct.cups}{versionesDelCups(ct,datos.contratos).length>1&&<div style={{fontSize:10,color:C.info,fontWeight:700}}>{versionesDelCups(ct,datos.contratos).length-1} histórico{versionesDelCups(ct,datos.contratos).length>2?"s":""}</div>}</TD>
                   <TD center><TipoChip tipo={ct.tipo}/></TD>
                   <TD center>{cm?.nombre}</TD>
                   <TD center style={{maxWidth:200,whiteSpace:"normal",fontSize:12}}>{pr?.nombre}</TD>
@@ -1099,13 +1169,14 @@ function Catalogo() {
   const [selCm,setSelCm]=useState(null);                       // filtro por botón de comercializadora
   const [filt,setFilt]=useState({cm:"",prod:"",tarifa:"",tipo:""});  // filtros por columna
   const [orden,setOrden]=useState({campo:"prod",dir:1});       // ordenación alfabética
+  const ctsActuales=contratosActuales(datos.contratos);
 
   const nombreCm=id=>datos.comercializadoras.find(x=>x.id===id)?.nombre||"";
   const cambiarOrden=campo=>setOrden(o=>o.campo===campo?{campo,dir:-o.dir}:{campo,dir:1});
   const Flecha=({campo})=>orden.campo===campo?<span style={{fontSize:10}}> {orden.dir===1?"▲":"▼"}</span>:<span style={{fontSize:10,opacity:.25}}> ▲</span>;
 
   const lista=datos.productos
-    .map(p=>({...p,_cm:nombreCm(p.comercializadora_id),_tarifa:p.tarifa||"",_ncts:datos.contratos.filter(c=>c.producto_id===p.id).length}))
+    .map(p=>({...p,_cm:nombreCm(p.comercializadora_id),_tarifa:p.tarifa||"",_ncts:ctsActuales.filter(c=>c.producto_id===p.id).length}))
     .filter(p=>
       (!selCm||p.comercializadora_id===selCm)
       &&(!filt.cm    ||p._cm.toLowerCase().includes(filt.cm.toLowerCase()))
@@ -1946,7 +2017,7 @@ function Renovaciones() {
 
   const hoy=new Date();
   const hoyStr=hoy.toISOString().slice(0,10);
-  const activos=datos.contratos.filter(c=>["activado","Activo","Activo FTR","pdte_renovar"].includes(c.estado)&&c.fecha_renovacion&&comercialCarteraId(c,datos));
+  const activos=contratosActuales(datos.contratos).filter(c=>["activado","Activo","Activo FTR","pdte_renovar"].includes(c.estado)&&c.fecha_renovacion&&comercialCarteraId(c,datos));
 
   // Helpers
   const diasHasta=c=>Math.ceil((new Date(c.fecha_renovacion+"T00:00:00")-hoy)/86400000);
@@ -2743,7 +2814,7 @@ function ModalNuevoTicket() {
     !busqCli||((c.razon_social||"")+(c.cif||"")+(c.nif||"")).toLowerCase().includes(busqCli.toLowerCase())
   ).slice(0,50);
 
-  const contratos_del_cliente=f.cliente_id?datos.contratos.filter(c=>c.cliente_id===f.cliente_id):[];
+  const contratos_del_cliente=f.cliente_id?contratosActuales(datos.contratos).filter(c=>c.cliente_id===f.cliente_id):[];
 
   const guardar=async()=>{
     if(!f.asunto.trim()){alert("El asunto es obligatorio");return;}
