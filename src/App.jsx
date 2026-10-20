@@ -56,7 +56,6 @@ const FONT = "'Archivo', system-ui, sans-serif";
 const LOGO="data:image/png;base64,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";
 
 const ESTADOS = {
-  // Estados internos del CRM (minúsculas)
   borrador:     { label:"Borrador",       fg:C.grey, bg:C.greyBg },
   enviado:      { label:"Enviado",        fg:C.info, bg:C.infoBg },
   en_tramite:   { label:"En Trámite",     fg:"#7c3aed", bg:"#ede9fe" },
@@ -67,20 +66,22 @@ const ESTADOS = {
   rechazado:    { label:"Rechazado",      fg:C.err,  bg:C.errBg  },
   baja:         { label:"Baja",           fg:C.warn, bg:C.warnBg },
   cancelado:    { label:"Cancelado",      fg:C.grey, bg:C.greyBg },
-  // Estados de iNergia (nomenclatura oficial, tal cual llegan por API/export)
-  "Activo":              { label:"Activo",              fg:C.ok,   bg:C.okBg   },
-  "Activo FTR":          { label:"Activo FTR",          fg:C.ok,   bg:C.okBg   },
-  "En Trámite":          { label:"En Trámite",          fg:C.info, bg:C.infoBg },
-  "Nuevo":               { label:"Nuevo",               fg:C.info, bg:C.infoBg },
-  "Borrador":            { label:"Borrador",            fg:C.grey, bg:C.greyBg },
-  "Pendiente de Firma":  { label:"Pendiente de Firma",  fg:C.warn, bg:C.warnBg },
-  "Pendiente CC":        { label:"Pendiente CC",        fg:C.warn, bg:C.warnBg },
-  "Incidencia":          { label:"Incidencia",          fg:C.err,  bg:C.errBg  },
-  "Incidencia Resuelta": { label:"Incidencia Resuelta", fg:C.ok,   bg:C.okBg   },
-  "Rechazado":           { label:"Rechazado",           fg:C.err,  bg:C.errBg  },
-  "Cancelado":           { label:"Cancelado",           fg:C.grey, bg:C.greyBg },
-  "Baja":                { label:"Baja",                fg:C.warn, bg:C.warnBg },
-  "Baja CC":             { label:"Baja CC",             fg:C.warn, bg:C.warnBg },
+};
+const ESTADO_EQUIVALENCIAS = {
+  "activo":"activado", "activado":"activado", "activo ftr":"activado",
+  "baja":"baja", "baja cc":"baja",
+  "cancelado":"cancelado", "cancelada":"cancelado",
+  "rechazado":"rechazado", "rechazada":"rechazado",
+  "incidencia":"incidencia", "incidencia resuelta":"en_tramite",
+  "en trámite":"en_tramite", "en tramite":"en_tramite", "pendiente cc":"en_tramite",
+  "pendiente de firma":"en_tramite", "nuevo":"en_tramite",
+  "borrador":"borrador", "enviado":"enviado",
+  "pdte. renovar":"pdte_renovar", "pdte renovar":"pdte_renovar", "pdte_renovar":"pdte_renovar",
+  "pdte. grabar":"pdte_grabar", "pdte grabar":"pdte_grabar", "pdte_grabar":"pdte_grabar",
+};
+const normalizarEstado = estado => {
+  const valor=String(estado||"").trim();
+  return ESTADO_EQUIVALENCIAS[valor.toLowerCase()]||valor.toLowerCase().replace(/\s+/g,"_")||"borrador";
 };
 const CONCEPTOS = ["Comisión","Regularización","Penalización","Adelanto","Devolución"];
 const ROLES = ["Master","Manager","Jefe de Equipo","Comercial"];
@@ -158,7 +159,7 @@ const sortBy = (arr,campo,dir,accessor) => [...arr].sort((a,b)=>{
   return r*dir;
 });
 const diasBaja = c => {
-  if (c.estado!=="baja"||!c.fecha_baja) return null;
+  if (normalizarEstado(c.estado)!=="baja"||!c.fecha_baja) return null;
   const lim=new Date(c.fecha_baja+"T00:00:00"); lim.setDate(lim.getDate()+15);
   return Math.ceil((lim-new Date())/86400000);
 };
@@ -229,8 +230,9 @@ const TipoChip = ({tipo}) => tipo==="luz"
   ? <Badge fg={C.luz} bg={C.luzBg}><Zap size={12}/> Luz</Badge>
   : <Badge fg={C.gas} bg={C.gasBg}><Flame size={12}/> Gas</Badge>;
 const EstadoChip = ({estado,dias}) => {
-  const e=ESTADOS[estado]||{label:estado||"—",fg:C.grey,bg:C.greyBg};
-  const esBaja=estado==="baja"||estado==="Baja"||estado==="Baja CC";
+  const clave=normalizarEstado(estado);
+  const e=ESTADOS[clave]||{label:estado||"—",fg:C.grey,bg:C.greyBg};
+  const esBaja=clave==="baja";
   return <Badge fg={e.fg} bg={e.bg}>{e.label}{esBaja&&dias!=null&&dias>=0?" · "+dias+"d":""}</Badge>;
 };
 const Btn = ({kind="primary",small,disabled,onClick,children,title,style={}}) => {
@@ -264,6 +266,28 @@ const Field = ({label,children}) => (
 const iSt={width:"100%",fontFamily:FONT,fontSize:13,padding:"8px 10px",border:"1px solid "+C.line,borderRadius:8,background:"#fff",color:C.ink,outline:"none",boxSizing:"border-box"};
 const Input  = p => <input  {...p} style={{...iSt,...p.style}}/>;
 const Sel    = ({children,...p}) => <select {...p} style={{...iSt,...p.style}}>{children}</select>;
+const MultiSel = ({label,values,onChange,options,width=210,disabled=false}) => {
+  const selected=new Set(values);
+  const selectedLabels=options.filter(o=>selected.has(o.value)).map(o=>o.label);
+  const resumen=selectedLabels.length===0?label:selectedLabels.length===1?selectedLabels[0]:selectedLabels.length+" seleccionados";
+  const toggle=value=>onChange(selected.has(value)?values.filter(v=>v!==value):[...values,value]);
+  return (
+    <details style={{position:"relative",width,minWidth:170}}>
+      <summary aria-disabled={disabled} onClick={e=>disabled&&e.preventDefault()} style={{...iSt,listStyle:"none",cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,userSelect:"none",whiteSpace:"nowrap",overflow:"hidden"}}>
+        <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{resumen}</span><span style={{fontSize:10,color:C.mut}}>▼</span>
+      </summary>
+      {!disabled&&<div style={{position:"absolute",zIndex:40,top:"calc(100% + 4px)",left:0,width:"max-content",minWidth:"100%",maxWidth:360,maxHeight:300,overflowY:"auto",padding:6,background:"#fff",border:"1px solid "+C.line,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,.14)"}}>
+        {values.length>0&&<button type="button" onClick={()=>onChange([])} style={{width:"100%",padding:"7px 8px",border:0,borderBottom:"1px solid "+C.line,background:"transparent",color:C.info,textAlign:"left",fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer"}}>Limpiar selección</button>}
+        {options.map(option=><label key={option.value} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",fontSize:12,cursor:"pointer",borderRadius:6,whiteSpace:"nowrap"}}>
+          <input type="checkbox" checked={selected.has(option.value)} onChange={()=>toggle(option.value)}/>
+          <span style={{flex:1}}>{option.label}</span>
+          {option.count!=null&&<span style={{color:C.mut,fontVariantNumeric:"tabular-nums"}}>{option.count}</span>}
+        </label>)}
+        {options.length===0&&<div style={{padding:8,fontSize:12,color:C.mut}}>Sin opciones para los estados elegidos</div>}
+      </div>}
+    </details>
+  );
+};
 const Card   = ({children,style,onClick}) => <div style={{background:C.panel,border:"1px solid "+C.line,borderRadius:12,...style}} onClick={onClick}>{children}</div>;
 const TH     = ({children,right,style}) => <th style={{padding:"8px 12px",fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",color:C.mut,textAlign:right?"right":"center",...style}}>{children}</th>;
 const TD     = ({children,right,center,left,style}) => <td style={{padding:"13px 14px",fontSize:13,textAlign:left?"left":right?"right":"center",borderTop:"1px solid "+C.line,verticalAlign:"middle",...style}}>{children}</td>;
@@ -388,6 +412,7 @@ function AccionesContrato({ct}) {
   const pv =datos.proveedores.find(x=>x.id===cm?.proveedor_id);
   const esApi=pv?.tipo==="api";
   const dias=diasBaja(ct);
+  const estadoActual=normalizarEstado(ct.estado);
 
   const consultarEstado=async()=>{
     setConsultando(true);
@@ -419,8 +444,8 @@ function AccionesContrato({ct}) {
   };
 
   const cambiarManual=async nuevoEstado=>{
-    if(!nuevoEstado||nuevoEstado===ct.estado) return;
-    if(!confirm("¿Cambiar estado de «"+(ESTADOS[ct.estado]?.label||ct.estado)+"» a «"+(ESTADOS[nuevoEstado]?.label||nuevoEstado)+"»?\n\nEl contrato se marcará como manual y no se sincronizará con la API.")) return;
+    if(!nuevoEstado||nuevoEstado===estadoActual) return;
+    if(!confirm("¿Cambiar estado de «"+(ESTADOS[estadoActual]?.label||ct.estado)+"» a «"+(ESTADOS[nuevoEstado]?.label||nuevoEstado)+"»?\n\nEl contrato se marcará como manual y no se sincronizará con la API.")) return;
     await cambiar(nuevoEstado,true);
     setShowEstados(false);
   };
@@ -432,24 +457,24 @@ function AccionesContrato({ct}) {
 
   return (
     <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center"}}>
-      {ct.estado==="borrador"&&can.enviarContrato(yo)&&(
+      {estadoActual==="borrador"&&can.enviarContrato(yo)&&(
         esApi
           ?<Btn small kind="primary" onClick={()=>setModal({t:"enviarInergia",ct})}><Send size={12}/> Enviar a {pv?.nombre}</Btn>
           :<Btn small kind="primary" onClick={()=>cambiar("enviado",true)}><Send size={12}/> Enviar</Btn>
       )}
-      {ct.estado==="enviado"&&esApi&&ct.id_inergia&&can.consultarEstado(yo)&&!ct.no_sync&&
+      {estadoActual==="enviado"&&esApi&&ct.id_inergia&&can.consultarEstado(yo)&&!ct.no_sync&&
         <Btn small kind="ghost" disabled={consultando} onClick={consultarEstado} title={"Consultar estado en "+pv?.nombre}><RefreshCw size={12}/> {consultando?"Consultando…":"Consultar estado"}</Btn>}
-      {ct.estado==="enviado"&&can.activarContrato(yo)&&<>
+      {estadoActual==="enviado"&&can.activarContrato(yo)&&<>
         <Btn small kind="ok"     onClick={()=>cambiar("activado",true)}><CheckCircle2 size={12}/> Activar</Btn>
         <Btn small kind="danger" onClick={()=>cambiar("rechazado",true)}>Rechazar</Btn>
       </>}
-      {ct.estado==="enviado"&&can.editarEnviado(yo)&&
+      {estadoActual==="enviado"&&can.editarEnviado(yo)&&
         <Btn small kind="ghost" onClick={()=>setModal({t:"editarContrato",ct})}><Pencil size={12}/> Editar</Btn>}
-      {["enviado","activado"].includes(ct.estado)&&can.editarEnviado(yo)&&
+      {["enviado","activado"].includes(estadoActual)&&can.editarEnviado(yo)&&
         <Btn small kind="danger" onClick={()=>cambiar("cancelado",true)}><Ban size={12}/> Cancelar</Btn>}
-      {ct.estado==="activado"&&can.activarContrato(yo)&&
+      {estadoActual==="activado"&&can.activarContrato(yo)&&
         <Btn small kind="ghost" onClick={()=>cambiar("baja",true)}>Registrar baja</Btn>}
-      {ct.estado==="baja"&&dias>=0&&can.activarContrato(yo)&&
+      {estadoActual==="baja"&&dias>=0&&can.activarContrato(yo)&&
         <Btn small kind="ok" onClick={()=>cambiar("activado",true)}><RotateCcw size={12}/> Recuperar</Btn>}
 
       {/* Cambiar estado manualmente */}
@@ -462,12 +487,12 @@ function AccionesContrato({ct}) {
             <div style={{position:"absolute",right:0,top:"100%",zIndex:30,background:"#fff",border:"1px solid "+C.line,borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,.12)",padding:4,minWidth:160,marginTop:4}}>
               {Object.entries(ESTADOS).map(([k,v])=>(
                 <div key={k} onClick={()=>cambiarManual(k)}
-                  style={{padding:"7px 12px",fontSize:12,fontWeight:k===ct.estado?700:400,cursor:k===ct.estado?"default":"pointer",
-                    borderRadius:6,color:k===ct.estado?v.fg:C.ink,background:k===ct.estado?v.bg:"transparent",
+                  style={{padding:"7px 12px",fontSize:12,fontWeight:k===estadoActual?700:400,cursor:k===estadoActual?"default":"pointer",
+                    borderRadius:6,color:k===estadoActual?v.fg:C.ink,background:k===estadoActual?v.bg:"transparent",
                     display:"flex",alignItems:"center",gap:6}}
-                  onMouseEnter={e=>{if(k!==ct.estado)e.currentTarget.style.background="#f5f5f5"}}
-                  onMouseLeave={e=>{if(k!==ct.estado)e.currentTarget.style.background="transparent"}}>
-                  {k===ct.estado&&<CheckCircle2 size={11}/>}
+                  onMouseEnter={e=>{if(k!==estadoActual)e.currentTarget.style.background="#f5f5f5"}}
+                  onMouseLeave={e=>{if(k!==estadoActual)e.currentTarget.style.background="transparent"}}>
+                  {k===estadoActual&&<CheckCircle2 size={11}/>}
                   {v.label}
                 </div>
               ))}
@@ -497,9 +522,9 @@ function Dashboard() {
   const {yo,datos,recargar,setSel,setVista}=useContext(Ctx);
   const cts=contratosActuales(datos.contratos);
   const nHistoricos=datos.contratos.length-cts.length;
-  const esActivo=e=>["activado","Activo","Activo FTR","pdte_renovar"].includes(e);
-  const esEnviado=e=>["enviado","en_tramite","En Trámite","Nuevo","Pendiente de Firma","Pendiente CC"].includes(e);
-  const esBaja=e=>["baja","Baja","Baja CC"].includes(e);
+  const esActivo=e=>["activado","pdte_renovar"].includes(normalizarEstado(e));
+  const esEnviado=e=>["enviado","en_tramite"].includes(normalizarEstado(e));
+  const esBaja=e=>normalizarEstado(e)==="baja";
   const activos=cts.filter(c=>esActivo(c.estado));const renovables=activos.filter(c=>comercialCarteraId(c,datos));const enviados=cts.filter(c=>esEnviado(c.estado));const bajas=cts.filter(c=>esBaja(c.estado)&&diasBaja(c)>=0);
   const hoyD=new Date();const diasH=c=>Math.ceil((new Date(c.fecha_renovacion+"T00:00:00")-hoyD)/86400000);
   const renov30=renovables.filter(c=>c.fecha_renovacion&&diasH(c)<=30&&diasH(c)>0);const renov60=renovables.filter(c=>c.fecha_renovacion&&diasH(c)<=60&&diasH(c)>0);const renov90=renovables.filter(c=>c.fecha_renovacion&&diasH(c)<=90&&diasH(c)>0);
@@ -510,7 +535,7 @@ function Dashboard() {
   const topCm=Object.entries(porCm).sort((a,b)=>b[1]-a[1]).slice(0,10);const maxCm=topCm[0]?.[1]||1;
   const nLuz=activos.filter(c=>c.tipo==="luz").length;const nGas=activos.filter(c=>c.tipo==="gas").length;
   const pctLuz=activos.length?(nLuz/activos.length*100).toFixed(0):0;const pctGas=activos.length?(nGas/activos.length*100).toFixed(0):0;
-  const porEstado={};cts.forEach(c=>{const e=ESTADOS[c.estado]||{label:c.estado};porEstado[e.label||c.estado]=(porEstado[e.label||c.estado]||0)+1;});const topEstados=Object.entries(porEstado).sort((a,b)=>b[1]-a[1]);
+  const porEstado={};cts.forEach(c=>{const clave=normalizarEstado(c.estado);const e=ESTADOS[clave]||{label:c.estado};porEstado[e.label||c.estado]=(porEstado[e.label||c.estado]||0)+1;});const topEstados=Object.entries(porEstado).sort((a,b)=>b[1]-a[1]);
   const porComercial={};activos.forEach(c=>{const u=comercialCartera(c,datos);porComercial[u?.nombre||"Cartera pendiente"]=(porComercial[u?.nombre||"Cartera pendiente"]||0)+1;});
   const topComercial=Object.entries(porComercial).sort((a,b)=>b[1]-a[1]);const maxComercial=topComercial[0]?.[1]||1;
   const KPI=({n,label,sub,fg,bg,icon:Icon,onClick})=>(<Card style={{padding:0,flex:1,minWidth:155,cursor:onClick?"pointer":"default",overflow:"hidden",borderTop:"3px solid "+fg}} onClick={onClick}><div style={{display:"flex",alignItems:"center",gap:14,padding:"18px 20px"}}><div style={{width:48,height:48,borderRadius:12,background:bg||fg+"14",display:"flex",alignItems:"center",justifyContent:"center"}}>{Icon&&<Icon size={22} style={{color:fg}}/>}</div><div><div style={{fontSize:28,fontWeight:800,color:C.ink,letterSpacing:-1,lineHeight:1}}>{n}</div><div style={{fontSize:12,fontWeight:600,color:C.mut,marginTop:3}}>{label}</div>{sub&&<div style={{fontSize:11,color:fg,fontWeight:600,marginTop:1}}>{sub}</div>}</div></div></Card>);
@@ -783,7 +808,7 @@ function ContratoDetalle({id, volver}) {
   const tieneTramos=tramosDeProducto(ct.producto_id,datos).length>0;
   const foto=ct.comision_calculada;
   const est=calcularComisionCt(ct,datos);
-  const esActivo=["activado","Activo","Activo FTR","pdte_renovar"].includes(ct.estado);
+  const esActivo=["activado","pdte_renovar"].includes(normalizarEstado(ct.estado));
   const diasRenov=ct.fecha_renovacion?Math.ceil((new Date(ct.fecha_renovacion+"T00:00:00")-new Date())/86400000):null;
   const esApi=!!ct.id_inergia;
   const [nuevaObs,setNuevaObs]=useState("");
@@ -1025,18 +1050,42 @@ function exportarContratosExcel(listaFiltrada, datos){
 function Contratos() {
   const {datos,setModal,setSel}=useContext(Ctx);
   const [busq,setBusq]=useState("");
-  const [fEstado,setFEstado]=useState("");
+  const [fEstados,setFEstados]=useState([]);
+  const [fSituaciones,setFSituaciones]=useState([]);
   const [fComercial,setFComercial]=useState("");
   const [orden,setOrden]=useState({campo:"estado_at",dir:-1});
   const actuales=contratosActuales(datos.contratos);
   const nHistoricos=datos.contratos.length-actuales.length;
+  const opcionesEstado=Object.entries(ESTADOS).map(([value,meta])=>({
+    value,label:meta.label,count:actuales.filter(c=>normalizarEstado(c.estado)===value).length,
+  })).filter(option=>option.count>0);
+  const baseSituaciones=fEstados.length?actuales.filter(c=>fEstados.includes(normalizarEstado(c.estado))):actuales;
+  const conteoSituaciones=baseSituaciones.reduce((acc,c)=>{
+    const value=String(c.situacion||"").trim()||"__empty__";
+    acc[value]=(acc[value]||0)+1;
+    return acc;
+  },{});
+  const opcionesSituacion=Object.entries(conteoSituaciones)
+    .map(([value,count])=>({value,label:value==="__empty__"?"Sin situación":value,count}))
+    .sort((a,b)=>a.label.localeCompare(b.label,"es",{sensitivity:"base"}));
+  const claveSituaciones=opcionesSituacion.map(option=>option.value).join("\u0000");
+  useEffect(()=>{
+    const disponibles=new Set(opcionesSituacion.map(option=>option.value));
+    setFSituaciones(prev=>{
+      const validas=prev.filter(value=>disponibles.has(value));
+      return validas.length===prev.length?prev:validas;
+    });
+  },[claveSituaciones]);
   const list=actuales.filter(c=>{
     const cl=datos.clientes.find(x=>x.id===c.cliente_id);
     const ok=!busq||(cl?.razon_social+c.cups).toLowerCase().includes(busq.toLowerCase());
     const carteraId=comercialCarteraId(c,datos);
     if(fComercial==="__pending__"&&carteraId) return false;
     if(fComercial&&fComercial!=="__pending__"&&carteraId!==fComercial) return false;
-    return ok&&(!fEstado||c.estado===fEstado);
+    if(fEstados.length&&!fEstados.includes(normalizarEstado(c.estado))) return false;
+    const situacion=String(c.situacion||"").trim()||"__empty__";
+    if(fSituaciones.length&&!fSituaciones.includes(situacion)) return false;
+    return ok;
   });
   const acc=(c,campo)=>{
     if(campo==="cliente") return datos.clientes.find(x=>x.id===c.cliente_id)?.razon_social||"";
@@ -1044,6 +1093,7 @@ function Contratos() {
     if(campo==="producto") return datos.productos.find(x=>x.id===c.producto_id)?.nombre||"";
     if(campo==="comercial") return comercialCartera(c,datos)?.nombre||"Cartera pendiente";
     if(campo==="comercial_import") return c.comercial_import||"";
+    if(campo==="estado") return normalizarEstado(c.estado);
     if(campo==="estado_at") return c.estado_at||c.created_at||"";
     return c[campo];
   };
@@ -1055,10 +1105,8 @@ function Contratos() {
           <Search size={14} style={{position:"absolute",left:10,top:10,color:C.mut}}/>
           <Input placeholder="Buscar cliente o CUPS…" value={busq} onChange={e=>setBusq(e.target.value)} style={{paddingLeft:30}}/>
         </div>
-        <Sel value={fEstado} onChange={e=>setFEstado(e.target.value)} style={{width:200}}>
-          <option value="">Todos los estados</option>
-          {Object.entries(ESTADOS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-        </Sel>
+        <MultiSel label="Todos los estados" values={fEstados} onChange={setFEstados} options={opcionesEstado} width={210}/>
+        <MultiSel label="Todas las situaciones" values={fSituaciones} onChange={setFSituaciones} options={opcionesSituacion} width={230}/>
         <Sel value={fComercial} onChange={e=>setFComercial(e.target.value)} style={{width:180}}>
           <option value="">Todos los comerciales de cartera</option>
           <option value="__pending__">Comercial Cartera pendiente</option>
@@ -1111,7 +1159,7 @@ function Contratos() {
                   <TD center>
                     {foto!==null&&foto!==undefined
                       ?<span style={{fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmtE(foto)}</span>
-                      :(["activado","Activo","Activo FTR"].includes(ct.estado)&&tieneTramos)
+                      :(normalizarEstado(ct.estado)==="activado"&&tieneTramos)
                         ?<span style={{fontSize:11,fontWeight:600,color:"#b45309"}}>Pendiente</span>
                         :est?<span style={{fontSize:12,color:C.mut,fontVariantNumeric:"tabular-nums"}} title="Estimación; se fija al activar">≈ {fmtE(est.comision)}</span>
                         :<span style={{fontSize:12,color:C.mut}}>—</span>}
@@ -2017,7 +2065,7 @@ function Renovaciones() {
 
   const hoy=new Date();
   const hoyStr=hoy.toISOString().slice(0,10);
-  const activos=contratosActuales(datos.contratos).filter(c=>["activado","Activo","Activo FTR","pdte_renovar"].includes(c.estado)&&c.fecha_renovacion&&comercialCarteraId(c,datos));
+  const activos=contratosActuales(datos.contratos).filter(c=>["activado","pdte_renovar"].includes(normalizarEstado(c.estado))&&c.fecha_renovacion&&comercialCarteraId(c,datos));
 
   // Helpers
   const diasHasta=c=>Math.ceil((new Date(c.fecha_renovacion+"T00:00:00")-hoy)/86400000);
@@ -2524,7 +2572,7 @@ function ModalNuevaLiq() {
 function ModalNuevaLinea() {
   const {datos,recargar,setModal,modal}=useContext(Ctx);
   const liq=datos.liquidaciones.find(x=>x.id===modal.liqId);
-  const cts=datos.contratos.filter(c=>{const pv=datos.proveedores.find(p=>p.id===datos.comercializadoras.find(cm=>cm.id===c.comercializadora_id)?.proveedor_id);return pv?.id===liq?.proveedor_id&&["activado","baja"].includes(c.estado)&&comercialCarteraId(c,datos);});
+  const cts=datos.contratos.filter(c=>{const pv=datos.proveedores.find(p=>p.id===datos.comercializadoras.find(cm=>cm.id===c.comercializadora_id)?.proveedor_id);return pv?.id===liq?.proveedor_id&&["activado","baja"].includes(normalizarEstado(c.estado))&&comercialCarteraId(c,datos);});
   const [f,setF]=useState({contrato_id:cts[0]?.id||"",concepto:"Comisión",importe:"",pct_override:""});
   const prev=datos.productos.find(p=>p.id===datos.contratos.find(c=>c.id===f.contrato_id)?.producto_id)?.comision_bruta;
   return (
