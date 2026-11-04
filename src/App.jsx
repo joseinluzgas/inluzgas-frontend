@@ -278,6 +278,26 @@ const MultiSel = ({label,values,onChange,options,width=210,disabled=false}) => {
     </details>
   );
 };
+const FechaRangoSel = ({desde,hasta,onDesde,onHasta,width=230}) => {
+  const resumen=desde&&hasta?fmtF(desde)+" – "+fmtF(hasta):desde?"Desde "+fmtF(desde):hasta?"Hasta "+fmtF(hasta):"Todas las fechas";
+  return (
+    <details style={{position:"relative",width,minWidth:190}}>
+      <summary style={{...iSt,listStyle:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,userSelect:"none",whiteSpace:"nowrap",overflow:"hidden"}}>
+        <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{resumen}</span><span style={{fontSize:10,color:C.mut}}>▼</span>
+      </summary>
+      <div style={{position:"absolute",zIndex:40,top:"calc(100% + 4px)",left:0,width:280,padding:12,background:"#fff",border:"1px solid "+C.line,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,.14)"}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.mut,marginBottom:8}}>FECHA DE REGISTRO</div>
+        <label style={{display:"block",fontSize:12,color:C.mut,marginBottom:10}}>Desde
+          <Input type="date" value={desde} max={hasta||undefined} onChange={e=>onDesde(e.target.value)} style={{marginTop:4}}/>
+        </label>
+        <label style={{display:"block",fontSize:12,color:C.mut,marginBottom:10}}>Hasta
+          <Input type="date" value={hasta} min={desde||undefined} onChange={e=>onHasta(e.target.value)} style={{marginTop:4}}/>
+        </label>
+        {(desde||hasta)&&<button type="button" onClick={()=>{onDesde("");onHasta("");}} style={{width:"100%",padding:"7px 8px",border:0,borderTop:"1px solid "+C.line,background:"transparent",color:C.info,textAlign:"left",fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer"}}>Limpiar fechas</button>}
+      </div>
+    </details>
+  );
+};
 const Card   = ({children,style,onClick}) => <div style={{background:C.panel,border:"1px solid "+C.line,borderRadius:12,...style}} onClick={onClick}>{children}</div>;
 const TH     = ({children,right,style}) => <th style={{padding:"8px 12px",fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",color:C.mut,textAlign:right?"right":"center",...style}}>{children}</th>;
 const TD     = ({children,right,center,left,style}) => <td style={{padding:"13px 14px",fontSize:13,textAlign:left?"left":right?"right":"center",borderTop:"1px solid "+C.line,verticalAlign:"middle",...style}}>{children}</td>;
@@ -1043,6 +1063,8 @@ function Contratos() {
   const [fEstados,setFEstados]=useState([]);
   const [fSituaciones,setFSituaciones]=useState([]);
   const [fComerciales,setFComerciales]=useState([]);
+  const [fFechaDesde,setFFechaDesde]=useState("");
+  const [fFechaHasta,setFFechaHasta]=useState("");
   const [orden,setOrden]=useState({campo:"estado_at",dir:-1});
   const actuales=useMemo(()=>contratosActuales(datos.contratos),[datos.contratos]);
   const nHistoricos=datos.contratos.length-actuales.length;
@@ -1068,7 +1090,7 @@ function Contratos() {
       estadoLabel:ESTADOS[estado]?.label||c.estado||"",
     };
   };
-  const filtros={busqueda:busq,estados:fEstados,situaciones:fSituaciones,comerciales:fComerciales};
+  const filtros={busqueda:busq,estados:fEstados,situaciones:fSituaciones,comerciales:fComerciales,fechaDesde:fFechaDesde,fechaHasta:fFechaHasta};
   const baseEstados=actuales.filter(c=>cumpleFiltrosContrato(c,{...filtros,ignorarEstado:true},detalleDe(c)));
   const opcionesEstado=Object.entries(ESTADOS).map(([value,meta])=>({
     value,label:meta.label,count:baseEstados.filter(c=>normalizarEstado(c.estado)===value).length,
@@ -1096,8 +1118,8 @@ function Contratos() {
     {value:"__pending__",label:"Cartera pendiente",count:conteoComerciales.__pending__||0},
     ...datos.usuarios.map(u=>({value:u.id,label:u.nombre,count:conteoComerciales[u.id]||0})),
   ].filter(option=>option.count>0||fComerciales.includes(option.value));
-  const hayFiltros=!!busq||fEstados.length>0||fSituaciones.length>0||fComerciales.length>0;
-  const limpiarFiltros=()=>{setBusq("");setFEstados([]);setFSituaciones([]);setFComerciales([]);};
+  const hayFiltros=!!busq||fEstados.length>0||fSituaciones.length>0||fComerciales.length>0||!!fFechaDesde||!!fFechaHasta;
+  const limpiarFiltros=()=>{setBusq("");setFEstados([]);setFSituaciones([]);setFComerciales([]);setFFechaDesde("");setFFechaHasta("");};
   const acc=(c,campo)=>{
     if(campo==="cliente") return detalleDe(c).cliente;
     if(campo==="comercializadora") return detalleDe(c).comercializadora;
@@ -1116,9 +1138,10 @@ function Contratos() {
           <Search size={14} style={{position:"absolute",left:10,top:10,color:C.mut}}/>
           <Input placeholder="Buscar cliente o CUPS…" value={busq} onChange={e=>setBusq(e.target.value)} style={{paddingLeft:30}}/>
         </div>
+        <MultiSel label="Todos los comerciales" values={fComerciales} onChange={setFComerciales} options={opcionesComercial} width={230}/>
+        <FechaRangoSel desde={fFechaDesde} hasta={fFechaHasta} onDesde={setFFechaDesde} onHasta={setFFechaHasta} width={230}/>
         <MultiSel label="Todos los estados" values={fEstados} onChange={setFEstados} options={opcionesEstado} width={210}/>
         <MultiSel label="Todas las situaciones" values={fSituaciones} onChange={setFSituaciones} options={opcionesSituacion} width={230}/>
-        <MultiSel label="Todos los comerciales" values={fComerciales} onChange={setFComerciales} options={opcionesComercial} width={230}/>
         {hayFiltros&&<Btn kind="ghost" onClick={limpiarFiltros}><X size={14}/> Limpiar filtros</Btn>}
         <Btn kind="ghost" onClick={()=>exportarContratosExcel(list,datos)}><Database size={14}/> Exportar a Excel</Btn>
         <Btn onClick={()=>setModal({t:"nuevoContrato"})}><Plus size={14}/> Alta de contrato</Btn>

@@ -48,6 +48,12 @@ export const normalizarEstadoContrato = estado => {
 export const normalizarSituacionContrato = situacion =>
   normalizarTextoFiltro(situacion) || "__empty__";
 
+export const fechaRegistroContrato = contrato => {
+  const valor = contrato?.fecha_registro || contrato?.created_at || "";
+  const fecha = String(valor).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : "";
+};
+
 export const coincideBusquedaContrato = (busqueda, valores) => {
   const terminos = normalizarTextoFiltro(busqueda).split(" ").filter(Boolean);
   if (!terminos.length) return true;
@@ -61,11 +67,14 @@ export const cumpleFiltrosContrato = (contrato, filtros, detalle) => {
   const comerciales = filtros.comerciales || (filtros.comercial ? [filtros.comercial] : []);
   const estado = normalizarEstadoContrato(contrato.estado);
   const situacion = normalizarSituacionContrato(contrato.situacion);
+  const fecha = fechaRegistroContrato(contrato);
   const carteraId = detalle.carteraId || "";
 
   if (!filtros.ignorarEstado && estados.length && !estados.includes(estado)) return false;
   if (!filtros.ignorarSituacion && situaciones.length && !situaciones.includes(situacion)) return false;
   if (!filtros.ignorarComercial && comerciales.length && !comerciales.includes(carteraId || "__pending__")) return false;
+  if (filtros.fechaDesde && (!fecha || fecha < filtros.fechaDesde)) return false;
+  if (filtros.fechaHasta && (!fecha || fecha > filtros.fechaHasta)) return false;
 
   return coincideBusquedaContrato(filtros.busqueda, [
     detalle.cliente,

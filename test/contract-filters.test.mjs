@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import {
   coincideBusquedaContrato,
   cumpleFiltrosContrato,
+  fechaRegistroContrato,
   normalizarEstadoContrato,
   normalizarSituacionContrato,
 } from "../src/contractFilters.js";
 
-const casilda = { estado: "en_tramite", situacion: "PDT FIRMA", cups: "ES0021000002218614RP", id_inergia: 123 };
+const casilda = { estado: "en_tramite", situacion: "PDT FIRMA", cups: "ES0021000002218614RP", id_inergia: 123, fecha_registro: "2026-11-03" };
 const detalle = {
   cliente: "CASILDA GARCÍA OBREGÓN",
   documento: "13017192C",
@@ -55,4 +56,12 @@ test("la multiselección de comerciales acepta cualquiera de los elegidos", () =
   assert.equal(cumpleFiltrosContrato(casilda, { comerciales: ["paco", "fernando"] }, detalle), false);
   assert.equal(cumpleFiltrosContrato(casilda, { comerciales: [] }, detalle), true);
   assert.equal(cumpleFiltrosContrato(casilda, { comerciales: ["__pending__"] }, { ...detalle, carteraId: "" }), true);
+});
+
+test("filtra por fecha de registro con límites incluidos", () => {
+  assert.equal(fechaRegistroContrato(casilda), "2026-11-03");
+  assert.equal(cumpleFiltrosContrato(casilda, { fechaDesde: "2026-11-03", fechaHasta: "2026-11-03" }, detalle), true);
+  assert.equal(cumpleFiltrosContrato(casilda, { fechaDesde: "2026-11-04" }, detalle), false);
+  assert.equal(cumpleFiltrosContrato(casilda, { fechaHasta: "2026-11-02" }, detalle), false);
+  assert.equal(fechaRegistroContrato({ created_at: "2026-10-14T08:30:00Z" }), "2026-10-14");
 });
