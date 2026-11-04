@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useContext, createContext, useRef } from "react";
+import React, { useState, useEffect, useContext, createContext, useMemo, useRef } from "react";
+import {
+  cumpleFiltrosContrato,
+  normalizarEstadoContrato,
+  normalizarSituacionContrato,
+} from "./contractFilters.js";
 import {
   LayoutDashboard, Users, FileText, Layers, Euro, Plug, Plus, Search,
   AlertTriangle, CheckCircle2, Clock, Send, RotateCcw, X, Zap, Flame,
@@ -67,22 +72,7 @@ const ESTADOS = {
   baja:         { label:"Baja",           fg:C.warn, bg:C.warnBg },
   cancelado:    { label:"Cancelado",      fg:C.grey, bg:C.greyBg },
 };
-const ESTADO_EQUIVALENCIAS = {
-  "activo":"activado", "activado":"activado", "activo ftr":"activado",
-  "baja":"baja", "baja cc":"baja",
-  "cancelado":"cancelado", "cancelada":"cancelado",
-  "rechazado":"rechazado", "rechazada":"rechazado",
-  "incidencia":"incidencia", "incidencia resuelta":"en_tramite",
-  "en trámite":"en_tramite", "en tramite":"en_tramite", "pendiente cc":"en_tramite",
-  "pendiente de firma":"en_tramite", "nuevo":"en_tramite",
-  "borrador":"borrador", "enviado":"enviado",
-  "pdte. renovar":"pdte_renovar", "pdte renovar":"pdte_renovar", "pdte_renovar":"pdte_renovar",
-  "pdte. grabar":"pdte_grabar", "pdte grabar":"pdte_grabar", "pdte_grabar":"pdte_grabar",
-};
-const normalizarEstado = estado => {
-  const valor=String(estado||"").trim();
-  return ESTADO_EQUIVALENCIAS[valor.toLowerCase()]||valor.toLowerCase().replace(/\s+/g,"_")||"borrador";
-};
+const normalizarEstado = normalizarEstadoContrato;
 const CONCEPTOS = ["Comisión","Regularización","Penalización","Adelanto","Devolución"];
 const ROLES = ["Master","Manager","Jefe de Equipo","Comercial"];
 const TIPOS_VIA = ["Alameda","Autovía","Avenida","Bajada","Barrio","Calle","Callejón","Camino","Carretera","Cañada","Colonia","Conjunto","Cuesta","Diseminado","Entrada","Explanada","Glorieta","Gran Vía","Grupo","Jardines","Lugar","Muelle","Paraje","Parque","Pasadizo","Pasaje","Paseo","Plaza","Polígono","Prolongación","Puente","Rambla","Ronda","Rotonda","Rúa","Sector","Senda","Subida","Travesía","Urbanización","Vía","Vereda"];
@@ -278,11 +268,11 @@ const MultiSel = ({label,values,onChange,options,width=210,disabled=false}) => {
       </summary>
       {!disabled&&<div style={{position:"absolute",zIndex:40,top:"calc(100% + 4px)",left:0,width:"max-content",minWidth:"100%",maxWidth:360,maxHeight:300,overflowY:"auto",padding:6,background:"#fff",border:"1px solid "+C.line,borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,.14)"}}>
         {values.length>0&&<button type="button" onClick={()=>onChange([])} style={{width:"100%",padding:"7px 8px",border:0,borderBottom:"1px solid "+C.line,background:"transparent",color:C.info,textAlign:"left",fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer"}}>Limpiar selección</button>}
-        {options.map(option=><label key={option.value} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",fontSize:12,cursor:"pointer",borderRadius:6,whiteSpace:"nowrap"}}>
-          <input type="checkbox" checked={selected.has(option.value)} onChange={()=>toggle(option.value)}/>
+        {options.map(option=><button type="button" key={option.value} role="menuitemcheckbox" aria-checked={selected.has(option.value)} onClick={()=>toggle(option.value)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 8px",fontSize:12,cursor:"pointer",border:0,borderRadius:6,whiteSpace:"nowrap",background:selected.has(option.value)?C.infoBg:"transparent",color:C.ink,fontFamily:FONT,textAlign:"left"}}>
+          <span aria-hidden="true" style={{width:14,height:14,border:"1px solid "+(selected.has(option.value)?C.info:C.line),borderRadius:3,background:selected.has(option.value)?C.info:"#fff",color:"#fff",fontSize:11,lineHeight:"12px",textAlign:"center"}}>{selected.has(option.value)?"✓":""}</span>
           <span style={{flex:1}}>{option.label}</span>
           {option.count!=null&&<span style={{color:C.mut,fontVariantNumeric:"tabular-nums"}}>{option.count}</span>}
-        </label>)}
+        </button>)}
         {options.length===0&&<div style={{padding:8,fontSize:12,color:C.mut}}>Sin opciones para los estados elegidos</div>}
       </div>}
     </details>
@@ -1054,44 +1044,61 @@ function Contratos() {
   const [fSituaciones,setFSituaciones]=useState([]);
   const [fComercial,setFComercial]=useState("");
   const [orden,setOrden]=useState({campo:"estado_at",dir:-1});
-  const actuales=contratosActuales(datos.contratos);
+  const actuales=useMemo(()=>contratosActuales(datos.contratos),[datos.contratos]);
   const nHistoricos=datos.contratos.length-actuales.length;
+  const indices=useMemo(()=>({
+    clientes:new Map(datos.clientes.map(x=>[x.id,x])),
+    comercializadoras:new Map(datos.comercializadoras.map(x=>[x.id,x])),
+    productos:new Map(datos.productos.map(x=>[x.id,x])),
+    usuarios:new Map(datos.usuarios.map(x=>[x.id,x])),
+  }),[datos.clientes,datos.comercializadoras,datos.productos,datos.usuarios]);
+  const detalleDe=c=>{
+    const cl=indices.clientes.get(c.cliente_id);
+    const carteraId=Object.prototype.hasOwnProperty.call(c||{},"comercial_cartera_id")
+      ?c.comercial_cartera_id||""
+      :cl?.comercial_id||"";
+    const estado=normalizarEstado(c.estado);
+    return {
+      cliente:cl?.razon_social||"",
+      documento:cl?.cif||cl?.nif||"",
+      comercializadora:indices.comercializadoras.get(c.comercializadora_id)?.nombre||"",
+      producto:indices.productos.get(c.producto_id)?.nombre||"",
+      comercial:indices.usuarios.get(carteraId)?.nombre||"Cartera pendiente",
+      carteraId,
+      estadoLabel:ESTADOS[estado]?.label||c.estado||"",
+    };
+  };
+  const filtros={busqueda:busq,estados:fEstados,situaciones:fSituaciones,comercial:fComercial};
+  const baseEstados=actuales.filter(c=>cumpleFiltrosContrato(c,{...filtros,ignorarEstado:true},detalleDe(c)));
   const opcionesEstado=Object.entries(ESTADOS).map(([value,meta])=>({
-    value,label:meta.label,count:actuales.filter(c=>normalizarEstado(c.estado)===value).length,
-  })).filter(option=>option.count>0);
-  const baseSituaciones=fEstados.length?actuales.filter(c=>fEstados.includes(normalizarEstado(c.estado))):actuales;
+    value,label:meta.label,count:baseEstados.filter(c=>normalizarEstado(c.estado)===value).length,
+  })).filter(option=>option.count>0||fEstados.includes(option.value));
+  const baseSituaciones=actuales.filter(c=>cumpleFiltrosContrato(c,{...filtros,ignorarSituacion:true},detalleDe(c)));
   const conteoSituaciones=baseSituaciones.reduce((acc,c)=>{
-    const value=String(c.situacion||"").trim()||"__empty__";
-    acc[value]=(acc[value]||0)+1;
+    const value=normalizarSituacionContrato(c.situacion);
+    const actual=acc[value]||{count:0,label:value==="__empty__"?"Sin situación":String(c.situacion||"").trim()};
+    actual.count++;
+    acc[value]=actual;
     return acc;
   },{});
   const opcionesSituacion=Object.entries(conteoSituaciones)
-    .map(([value,count])=>({value,label:value==="__empty__"?"Sin situación":value,count}))
+    .map(([value,{count,label}])=>({value,label,count}))
+    .concat(fSituaciones.filter(value=>!conteoSituaciones[value]).map(value=>({value,label:value==="__empty__"?"Sin situación":value,count:0})))
     .sort((a,b)=>a.label.localeCompare(b.label,"es",{sensitivity:"base"}));
-  const claveSituaciones=opcionesSituacion.map(option=>option.value).join("\u0000");
-  useEffect(()=>{
-    const disponibles=new Set(opcionesSituacion.map(option=>option.value));
-    setFSituaciones(prev=>{
-      const validas=prev.filter(value=>disponibles.has(value));
-      return validas.length===prev.length?prev:validas;
-    });
-  },[claveSituaciones]);
-  const list=actuales.filter(c=>{
-    const cl=datos.clientes.find(x=>x.id===c.cliente_id);
-    const ok=!busq||(cl?.razon_social+c.cups).toLowerCase().includes(busq.toLowerCase());
-    const carteraId=comercialCarteraId(c,datos);
-    if(fComercial==="__pending__"&&carteraId) return false;
-    if(fComercial&&fComercial!=="__pending__"&&carteraId!==fComercial) return false;
-    if(fEstados.length&&!fEstados.includes(normalizarEstado(c.estado))) return false;
-    const situacion=String(c.situacion||"").trim()||"__empty__";
-    if(fSituaciones.length&&!fSituaciones.includes(situacion)) return false;
-    return ok;
-  });
+  const list=actuales.filter(c=>cumpleFiltrosContrato(c,filtros,detalleDe(c)));
+  const baseComerciales=actuales.filter(c=>cumpleFiltrosContrato(c,{...filtros,ignorarComercial:true},detalleDe(c)));
+  const conteoComerciales=baseComerciales.reduce((acc,c)=>{
+    const id=detalleDe(c).carteraId||"__pending__";
+    acc[id]=(acc[id]||0)+1;
+    return acc;
+  },{});
+  const hayFiltros=!!busq||fEstados.length>0||fSituaciones.length>0||!!fComercial;
+  const limpiarFiltros=()=>{setBusq("");setFEstados([]);setFSituaciones([]);setFComercial("");};
   const acc=(c,campo)=>{
-    if(campo==="cliente") return datos.clientes.find(x=>x.id===c.cliente_id)?.razon_social||"";
-    if(campo==="comercializadora") return datos.comercializadoras.find(x=>x.id===c.comercializadora_id)?.nombre||"";
-    if(campo==="producto") return datos.productos.find(x=>x.id===c.producto_id)?.nombre||"";
-    if(campo==="comercial") return comercialCartera(c,datos)?.nombre||"Cartera pendiente";
+    if(campo==="cliente") return detalleDe(c).cliente;
+    if(campo==="comercializadora") return detalleDe(c).comercializadora;
+    if(campo==="producto") return detalleDe(c).producto;
+    if(campo==="comercial") return detalleDe(c).comercial;
     if(campo==="comercial_import") return c.comercial_import||"";
     if(campo==="estado") return normalizarEstado(c.estado);
     if(campo==="estado_at") return c.estado_at||c.created_at||"";
@@ -1109,9 +1116,10 @@ function Contratos() {
         <MultiSel label="Todas las situaciones" values={fSituaciones} onChange={setFSituaciones} options={opcionesSituacion} width={230}/>
         <Sel value={fComercial} onChange={e=>setFComercial(e.target.value)} style={{width:180}}>
           <option value="">Todos los comerciales de cartera</option>
-          <option value="__pending__">Comercial Cartera pendiente</option>
-          {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}
+          <option value="__pending__">Comercial Cartera pendiente ({conteoComerciales.__pending__||0})</option>
+          {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre} ({conteoComerciales[u.id]||0})</option>)}
         </Sel>
+        {hayFiltros&&<Btn kind="ghost" onClick={limpiarFiltros}><X size={14}/> Limpiar filtros</Btn>}
         <Btn kind="ghost" onClick={()=>exportarContratosExcel(list,datos)}><Database size={14}/> Exportar a Excel</Btn>
         <Btn onClick={()=>setModal({t:"nuevoContrato"})}><Plus size={14}/> Alta de contrato</Btn>
       </div>
