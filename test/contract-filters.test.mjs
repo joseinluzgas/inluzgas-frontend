@@ -49,3 +49,10 @@ test("todos los filtros excluyen únicamente cuando corresponde", () => {
   assert.equal(cumpleFiltrosContrato(casilda, { busqueda: "", estados: [], situaciones: [], comercial: "__pending__" }, detalle), false);
   assert.equal(cumpleFiltrosContrato(casilda, { busqueda: "", estados: [], situaciones: [], comercial: "laura" }, detalle), true);
 });
+
+test("la multiselección de comerciales acepta cualquiera de los elegidos", () => {
+  assert.equal(cumpleFiltrosContrato(casilda, { comerciales: ["paco", "laura"] }, detalle), true);
+  assert.equal(cumpleFiltrosContrato(casilda, { comerciales: ["paco", "fernando"] }, detalle), false);
+  assert.equal(cumpleFiltrosContrato(casilda, { comerciales: [] }, detalle), true);
+  assert.equal(cumpleFiltrosContrato(casilda, { comerciales: ["__pending__"] }, { ...detalle, carteraId: "" }), true);
+});

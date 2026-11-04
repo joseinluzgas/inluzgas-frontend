@@ -1042,7 +1042,7 @@ function Contratos() {
   const [busq,setBusq]=useState("");
   const [fEstados,setFEstados]=useState([]);
   const [fSituaciones,setFSituaciones]=useState([]);
-  const [fComercial,setFComercial]=useState("");
+  const [fComerciales,setFComerciales]=useState([]);
   const [orden,setOrden]=useState({campo:"estado_at",dir:-1});
   const actuales=useMemo(()=>contratosActuales(datos.contratos),[datos.contratos]);
   const nHistoricos=datos.contratos.length-actuales.length;
@@ -1068,7 +1068,7 @@ function Contratos() {
       estadoLabel:ESTADOS[estado]?.label||c.estado||"",
     };
   };
-  const filtros={busqueda:busq,estados:fEstados,situaciones:fSituaciones,comercial:fComercial};
+  const filtros={busqueda:busq,estados:fEstados,situaciones:fSituaciones,comerciales:fComerciales};
   const baseEstados=actuales.filter(c=>cumpleFiltrosContrato(c,{...filtros,ignorarEstado:true},detalleDe(c)));
   const opcionesEstado=Object.entries(ESTADOS).map(([value,meta])=>({
     value,label:meta.label,count:baseEstados.filter(c=>normalizarEstado(c.estado)===value).length,
@@ -1092,8 +1092,12 @@ function Contratos() {
     acc[id]=(acc[id]||0)+1;
     return acc;
   },{});
-  const hayFiltros=!!busq||fEstados.length>0||fSituaciones.length>0||!!fComercial;
-  const limpiarFiltros=()=>{setBusq("");setFEstados([]);setFSituaciones([]);setFComercial("");};
+  const opcionesComercial=[
+    {value:"__pending__",label:"Cartera pendiente",count:conteoComerciales.__pending__||0},
+    ...datos.usuarios.map(u=>({value:u.id,label:u.nombre,count:conteoComerciales[u.id]||0})),
+  ].filter(option=>option.count>0||fComerciales.includes(option.value));
+  const hayFiltros=!!busq||fEstados.length>0||fSituaciones.length>0||fComerciales.length>0;
+  const limpiarFiltros=()=>{setBusq("");setFEstados([]);setFSituaciones([]);setFComerciales([]);};
   const acc=(c,campo)=>{
     if(campo==="cliente") return detalleDe(c).cliente;
     if(campo==="comercializadora") return detalleDe(c).comercializadora;
@@ -1114,11 +1118,7 @@ function Contratos() {
         </div>
         <MultiSel label="Todos los estados" values={fEstados} onChange={setFEstados} options={opcionesEstado} width={210}/>
         <MultiSel label="Todas las situaciones" values={fSituaciones} onChange={setFSituaciones} options={opcionesSituacion} width={230}/>
-        <Sel value={fComercial} onChange={e=>setFComercial(e.target.value)} style={{width:180}}>
-          <option value="">Todos los comerciales de cartera</option>
-          <option value="__pending__">Comercial Cartera pendiente ({conteoComerciales.__pending__||0})</option>
-          {datos.usuarios.map(u=><option key={u.id} value={u.id}>{u.nombre} ({conteoComerciales[u.id]||0})</option>)}
-        </Sel>
+        <MultiSel label="Todos los comerciales" values={fComerciales} onChange={setFComerciales} options={opcionesComercial} width={230}/>
         {hayFiltros&&<Btn kind="ghost" onClick={limpiarFiltros}><X size={14}/> Limpiar filtros</Btn>}
         <Btn kind="ghost" onClick={()=>exportarContratosExcel(list,datos)}><Database size={14}/> Exportar a Excel</Btn>
         <Btn onClick={()=>setModal({t:"nuevoContrato"})}><Plus size={14}/> Alta de contrato</Btn>

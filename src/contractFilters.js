@@ -58,16 +58,14 @@ export const coincideBusquedaContrato = (busqueda, valores) => {
 export const cumpleFiltrosContrato = (contrato, filtros, detalle) => {
   const estados = filtros.estados || [];
   const situaciones = filtros.situaciones || [];
+  const comerciales = filtros.comerciales || (filtros.comercial ? [filtros.comercial] : []);
   const estado = normalizarEstadoContrato(contrato.estado);
   const situacion = normalizarSituacionContrato(contrato.situacion);
   const carteraId = detalle.carteraId || "";
 
   if (!filtros.ignorarEstado && estados.length && !estados.includes(estado)) return false;
   if (!filtros.ignorarSituacion && situaciones.length && !situaciones.includes(situacion)) return false;
-  if (!filtros.ignorarComercial) {
-    if (filtros.comercial === "__pending__" && carteraId) return false;
-    if (filtros.comercial && filtros.comercial !== "__pending__" && carteraId !== filtros.comercial) return false;
-  }
+  if (!filtros.ignorarComercial && comerciales.length && !comerciales.includes(carteraId || "__pending__")) return false;
 
   return coincideBusquedaContrato(filtros.busqueda, [
     detalle.cliente,
