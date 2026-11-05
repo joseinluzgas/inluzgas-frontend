@@ -1788,9 +1788,22 @@ function BotonActualizarEstados() {
   const {yo,datos,recargar}=useContext(Ctx);
   const [ejecutando,setEjecutando]=useState(false);
   const [progreso,setProgreso]=useState({paso:0,total:0,nombre:"",fase:""});
+  const [porcentajeVisual,setPorcentajeVisual]=useState(0);
   // Todo proveedor API con token participa automáticamente. Las integraciones
   // futuras que usen otro protocolo deben añadirse aquí con su adaptador.
   const proveedores=datos.proveedores.filter(pv=>pv.tipo==="api"&&pv.tiene_token);
+
+  useEffect(()=>{
+    if(!ejecutando)return;
+    const timer=setInterval(()=>setPorcentajeVisual(valor=>Math.min(95,valor+1)),900);
+    return ()=>clearInterval(timer);
+  },[ejecutando]);
+
+  useEffect(()=>{
+    if(!ejecutando||!progreso.total)return;
+    const porcentajeReal=Math.round(progreso.paso/progreso.total*100);
+    setPorcentajeVisual(valor=>Math.max(valor,porcentajeReal));
+  },[ejecutando,progreso.paso,progreso.total]);
 
   if(!can.actualizarEstados(yo))return null;
 
@@ -1799,6 +1812,7 @@ function BotonActualizarEstados() {
     const nombres=proveedores.map(pv=>pv.nombre).join(", ");
     if(!window.confirm("Se actualizarán la cartera y los estados de: "+nombres+".\n\nEl proceso puede tardar varios minutos. ¿Continuar?"))return;
     setEjecutando(true);
+    setPorcentajeVisual(0);
     const totalPasos=proveedores.length*2;
     setProgreso({paso:0,total:totalPasos,nombre:proveedores[0]?.nombre||"",fase:"Preparando"});
     const resultados=[];
@@ -1833,7 +1847,7 @@ function BotonActualizarEstados() {
     alert((fallidos.length?"Actualización terminada con incidencias":"Actualización terminada")+"\n\n"+detalle+"\n\nIntegraciones correctas: "+correctos.length+" de "+resultados.length);
   };
 
-  const porcentaje=progreso.total?Math.round(progreso.paso/progreso.total*100):0;
+  const porcentaje=porcentajeVisual;
   const texto=ejecutando
     ?"ACTUALIZANDO ESTADOS"
     :"ACTUALIZAR ESTADOS";
