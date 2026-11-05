@@ -90,6 +90,7 @@ const can = {
   revisarLiq:        u => ["Master","Manager"].includes(u?.rol),
   verTodasLiq:       u => ["Master","Manager"].includes(u?.rol),
   verTodosTickets:   u => ["Master","Manager"].includes(u?.rol),
+  actualizarEstados: u => ["Master","Manager"].includes(u?.rol),
 };
 
 /* ============================================================
@@ -1783,6 +1784,80 @@ function Integraciones() {
   );
 }
 
+function BotonActualizarEstados() {
+  const {yo,datos,recargar}=useContext(Ctx);
+  const [ejecutando,setEjecutando]=useState(false);
+  const [progreso,setProgreso]=useState({paso:0,total:0,nombre:"",fase:""});
+  // Todo proveedor API con token participa automáticamente. Las integraciones
+  // futuras que usen otro protocolo deben añadirse aquí con su adaptador.
+  const proveedores=datos.proveedores.filter(pv=>pv.tipo==="api"&&pv.tiene_token);
+
+  if(!can.actualizarEstados(yo))return null;
+
+  const actualizar=async()=>{
+    if(!proveedores.length){alert("No hay integraciones API configuradas.");return;}
+    const nombres=proveedores.map(pv=>pv.nombre).join(", ");
+    if(!window.confirm("Se actualizarán la cartera y los estados de: "+nombres+".\n\nEl proceso puede tardar varios minutos. ¿Continuar?"))return;
+    setEjecutando(true);
+    const totalPasos=proveedores.length*2;
+    setProgreso({paso:0,total:totalPasos,nombre:proveedores[0]?.nombre||"",fase:"Preparando"});
+    const resultados=[];
+    for(let i=0;i<proveedores.length;i++){
+      const pv=proveedores[i];
+      const pasoBase=i*2;
+      try{
+        const nombre=encodeURIComponent(pv.nombre);
+        setProgreso({paso:pasoBase,total:totalPasos,nombre:pv.nombre,fase:"Actualizando cartera"});
+        const cartera=await POST("/api/inergia/"+nombre+"/sincronizar-contratos",{});
+        if(!cartera.ok)throw new Error(cartera.error||"No se pudo sincronizar la cartera");
+        setProgreso({paso:pasoBase+1,total:totalPasos,nombre:pv.nombre,fase:"Consultando estados"});
+        const estados=await POST("/api/inergia/"+nombre+"/sync-estados",{});
+        if(!estados.ok)throw new Error(estados.error||"No se pudieron actualizar los estados");
+        resultados.push({
+          nombre:pv.nombre,ok:true,
+          cartera:cartera.total||0,creados:cartera.creados||0,actualizados:cartera.actualizados||0,
+          revisados:estados.revisados||0,cambios:estados.cambios||0,
+          errores:(cartera.erroresCli?.length||0)+(estados.errores?.length||0),
+        });
+      }catch(error){resultados.push({nombre:pv.nombre,ok:false,error:error.message});}
+      setProgreso({paso:pasoBase+2,total:totalPasos,nombre:pv.nombre,fase:"Completado"});
+    }
+    await recargar("contratos");
+    setEjecutando(false);
+    const correctos=resultados.filter(r=>r.ok);
+    const fallidos=resultados.filter(r=>!r.ok);
+    const detalle=resultados.map(r=>r.ok
+      ?"✅ "+r.nombre+": "+r.revisados+" revisados · "+r.cambios+" cambios · "+r.creados+" nuevos"+(r.errores?" · "+r.errores+" incidencias":"")
+      :"❌ "+r.nombre+": "+r.error
+    ).join("\n");
+    alert((fallidos.length?"Actualización terminada con incidencias":"Actualización terminada")+"\n\n"+detalle+"\n\nIntegraciones correctas: "+correctos.length+" de "+resultados.length);
+  };
+
+  const porcentaje=progreso.total?Math.round(progreso.paso/progreso.total*100):0;
+  const texto=ejecutando
+    ?"ACTUALIZANDO ESTADOS"
+    :"ACTUALIZAR ESTADOS";
+  return <div style={{marginBottom:12}}>
+    <button onClick={actualizar} disabled={ejecutando} title={ejecutando?progreso.fase+" · "+progreso.nombre:"Actualizar contratos y estados de todas las integraciones"}
+      style={{width:"100%",minHeight:54,display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px 8px",
+        borderRadius:10,border:"1px solid rgba(255,214,92,.65)",cursor:ejecutando?"wait":"pointer",fontFamily:FONT,fontSize:15,fontWeight:800,
+        letterSpacing:.2,textAlign:"center",color:"#172018",background:ejecutando?"#E8C85D":"linear-gradient(135deg,#F4C84B,#FFE38A)",
+        boxShadow:"0 5px 16px rgba(0,0,0,.22)",opacity:ejecutando?.8:1}}>
+        <RefreshCw size={18} style={{flexShrink:0,animation:ejecutando?"spin 1s linear infinite":"none"}}/> {texto}
+    </button>
+    {ejecutando&&<div style={{marginTop:8,padding:"8px 9px",borderRadius:8,background:"rgba(255,255,255,.07)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:6,marginBottom:5,fontSize:10,fontWeight:700,color:"#E8EFEA"}}>
+        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{progreso.nombre} · {progreso.fase}</span>
+        <span style={{fontSize:12,color:"#FFE38A",fontVariantNumeric:"tabular-nums"}}>{porcentaje}%</span>
+      </div>
+      <div role="progressbar" aria-label="Progreso de actualización de estados" aria-valuemin="0" aria-valuemax="100" aria-valuenow={porcentaje}
+        style={{height:8,borderRadius:99,overflow:"hidden",background:"rgba(255,255,255,.15)"}}>
+        <div style={{height:"100%",width:porcentaje+"%",borderRadius:99,background:"linear-gradient(90deg,#F4C84B,#FFE38A)",transition:"width .3s ease"}}/>
+      </div>
+    </div>}
+  </div>;
+}
+
 /* ============================================================
  * TICKETS
  * ============================================================ */
@@ -3060,6 +3135,7 @@ export default function App() {
             <div style={{fontSize:11,color:"#7E8C84",marginTop:2}}>CRM · Asesoría energética</div>
           </div>
           <nav style={{flex:1,padding:"0 8px"}}>
+            <BotonActualizarEstados/>
             {NAV.map(n=>{
               const act=vista===n.id&&!sel;
               return <button key={n.id} onClick={()=>{setVista(n.id);setSel(null);}} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,marginBottom:2,fontSize:13,fontWeight:600,border:"none",cursor:"pointer",background:act?"rgba(255,255,255,.09)":"transparent",color:act?"#fff":C.sideInk}}><n.icon size={15}/> {n.label}</button>;
