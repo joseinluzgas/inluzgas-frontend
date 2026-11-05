@@ -1795,7 +1795,7 @@ function BotonActualizarEstados() {
 
   useEffect(()=>{
     if(!ejecutando)return;
-    const timer=setInterval(()=>setPorcentajeVisual(valor=>Math.min(95,valor+1)),2300);
+    const timer=setInterval(()=>setPorcentajeVisual(valor=>Math.min(95,valor+1)),2600);
     return ()=>clearInterval(timer);
   },[ejecutando]);
 
