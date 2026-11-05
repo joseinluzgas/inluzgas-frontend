@@ -2255,6 +2255,47 @@ function Renovaciones() {
   };
   const sorted=sortBy(lista,orden.campo,orden.dir,acc);
 
+  const exportarExcel=async()=>{
+    try{
+      const {utils,writeFile}=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+      const filas=sorted.map(ct=>{
+        const cl=datos.clientes.find(x=>x.id===ct.cliente_id);
+        const cm=datos.comercializadoras.find(x=>x.id===ct.comercializadora_id);
+        const pr=datos.productos.find(x=>x.id===ct.producto_id);
+        const com=comercialCartera(ct,datos);
+        return {
+          "Cliente":cl?.razon_social||"",
+          "CIF/NIF":cl?.cif||cl?.nif||"",
+          "CUPS":ct.cups||"",
+          "Tipo":ct.tipo||"",
+          "Comercializadora":cm?.nombre||"",
+          "Producto":pr?.nombre||"",
+          "Tarifa":ct.tarifa||pr?.tarifa||"",
+          "Estado":ESTADOS[normalizarEstado(ct.estado)]?.label||ct.estado||"",
+          "Situación":ct.situacion||"",
+          "Fecha activación":ct.fecha_activacion?new Date(ct.fecha_activacion+"T00:00:00"):null,
+          "Fecha renovación":ct.fecha_renovacion?new Date(ct.fecha_renovacion+"T00:00:00"):null,
+          "Días hasta renovación":diasHasta(ct),
+          "Comercial Cartera":com?.nombre||"Cartera pendiente",
+          "Comercial Import":ct.comercial_import||"",
+          "Canal":ct.canal||"",
+        };
+      });
+      const ws=utils.json_to_sheet(filas,{cellDates:true});
+      ws["!cols"]=[
+        {wch:32},{wch:15},{wch:24},{wch:10},{wch:20},{wch:32},{wch:16},{wch:16},
+        {wch:24},{wch:16},{wch:16},{wch:20},{wch:22},{wch:22},{wch:20},
+      ];
+      for(let r=2;r<=filas.length+1;r++){
+        if(ws["J"+r])ws["J"+r].z="dd/mm/yyyy";
+        if(ws["K"+r])ws["K"+r].z="dd/mm/yyyy";
+      }
+      const wb=utils.book_new();
+      utils.book_append_sheet(wb,ws,"Renovaciones");
+      writeFile(wb,"renovaciones_inluzgas_"+hoyStr+".xlsx",{cellDates:true});
+    }catch(error){alert("❌ No se pudo exportar el Excel: "+error.message);}
+  };
+
   const comercializadorasConRenov=[...new Set(activos.map(c=>c.comercializadora_id))];
   const comercialesConRenov=[...new Set(activos.map(c=>comercialCarteraId(c,datos)).filter(Boolean))];
   const hayCarteraPendiente=activos.some(c=>!comercialCarteraId(c,datos));
@@ -2342,6 +2383,7 @@ function Renovaciones() {
             return <option key={id} value={id}>{u?.nombre}</option>;
           })}
         </Sel>
+        <Btn kind="ghost" onClick={exportarExcel}><Database size={14}/> Exportar a Excel</Btn>
         <div style={{fontSize:12,color:C.mut}}>{sorted.length} contratos</div>
       </div>
 
