@@ -442,8 +442,7 @@ function AccionesContrato({ct}) {
     if(manual) upd.no_sync=true; // Cambio manual → excluir de sincronización API
     if (estado==="enviado")  upd.fecha_envio=hoy();
     if (estado==="activado") {
-      const dm=ct.duracion_meses||12;
-      upd.fecha_activacion=hoy(); upd.fecha_renovacion=addM(dm); upd.fecha_baja=null;
+      upd.fecha_activacion=hoy(); upd.fecha_renovacion=addM(12); upd.fecha_baja=null;
       if (comercialCarteraId(ct,datos)&&(ct.comision_calculada===null||ct.comision_calculada===undefined)){
         const r=calcularComisionCt(ct,datos);
         if(r) upd.comision_calculada=r.comision;
@@ -2185,7 +2184,7 @@ function Renovaciones() {
 
   const hoy=new Date();
   const hoyStr=hoy.toISOString().slice(0,10);
-  const activos=contratosActuales(datos.contratos).filter(c=>["activado","pdte_renovar"].includes(normalizarEstado(c.estado))&&c.fecha_renovacion&&comercialCarteraId(c,datos));
+  const activos=contratosActuales(datos.contratos).filter(c=>["activado","pdte_renovar"].includes(normalizarEstado(c.estado))&&c.fecha_renovacion);
 
   // Helpers
   const diasHasta=c=>Math.ceil((new Date(c.fecha_renovacion+"T00:00:00")-hoy)/86400000);
@@ -2238,7 +2237,8 @@ function Renovaciones() {
 
   const lista=base.filter(c=>{
     if(fCm&&c.comercializadora_id!==fCm) return false;
-    if(fComercial&&comercialCarteraId(c,datos)!==fComercial) return false;
+    if(fComercial==="__pending__"&&comercialCarteraId(c,datos)) return false;
+    if(fComercial&&fComercial!=="__pending__"&&comercialCarteraId(c,datos)!==fComercial) return false;
     if(!busq) return true;
     const cl=datos.clientes.find(x=>x.id===c.cliente_id);
     return (cl?.razon_social+c.cups).toLowerCase().includes(busq.toLowerCase());
@@ -2257,6 +2257,7 @@ function Renovaciones() {
 
   const comercializadorasConRenov=[...new Set(activos.map(c=>c.comercializadora_id))];
   const comercialesConRenov=[...new Set(activos.map(c=>comercialCarteraId(c,datos)).filter(Boolean))];
+  const hayCarteraPendiente=activos.some(c=>!comercialCarteraId(c,datos));
 
   const TabBtn=({t})=>{
     const act=filtro===t.id&&!fDesde&&!fHasta&&!fMes;
@@ -2335,6 +2336,7 @@ function Renovaciones() {
         </Sel>
         <Sel value={fComercial} onChange={e=>setFComercial(e.target.value)} style={{width:180}}>
           <option value="">Todos los comerciales</option>
+          {hayCarteraPendiente&&<option value="__pending__">Cartera pendiente</option>}
           {comercialesConRenov.map(id=>{
             const u=datos.usuarios.find(x=>x.id===id);
             return <option key={id} value={id}>{u?.nombre}</option>;
@@ -2378,7 +2380,7 @@ function Renovaciones() {
                   <TD style={{fontSize:12,color:C.mut}}>{fmtF(ct.fecha_activacion)}</TD>
                   <TD style={{fontSize:12,fontWeight:600}}>{fmtF(ct.fecha_renovacion)}</TD>
                   <TD><Badge fg={diasR<0?"#fff":colorDias} bg={diasR<0?"#000":colorDias+"18"}>{diasR<0?"Vencido "+Math.abs(diasR)+"d":diasR+"d"}</Badge></TD>
-                  <TD style={{fontSize:12,color:C.mut}}>{com?.nombre}</TD>
+                  <TD style={{fontSize:12,color:C.mut}}>{com?.nombre||"Cartera pendiente"}</TD>
                   <TD>
                     <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
                       <Btn small kind="ok" onClick={()=>setModal({t:"renovar",ct,modo:"cambio"})} title="Cambio de comercializadora">
