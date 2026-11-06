@@ -1386,7 +1386,7 @@ function Catalogo() {
 
 function Liquidaciones() {
   const {yo,datos,setSel,setModal,recargar}=useContext(Ctx);
-  const [filtros,setFiltros]=useState({comerciales:[],desde:"",hasta:"",productos:[],comercializadoras:[],estados:[]});
+  const [filtros,setFiltros]=useState({comerciales:[],desde:"",hasta:"",proveedores:[],comercializadoras:[],estados:[]});
   const [prevEdit,setPrevEdit]=useState({});
   const [recEdit,setRecEdit]=useState({});
   const [guardando,setGuardando]=useState("");
@@ -1409,7 +1409,7 @@ function Liquidaciones() {
     return m;
   },[datos.lineas]);
   const comerciales=[...datos.usuarios].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
-  const productos=[...datos.productos].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+  const proveedores=[...datos.proveedores].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
   const comercializadoras=[...datos.comercializadoras].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
   const estados=[...new Set(datos.contratos.map(c=>normalizarEstado(c.estado)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
   const contratos=useMemo(()=>datos.contratos
@@ -1417,7 +1417,7 @@ function Liquidaciones() {
     .filter(ct=>!filtros.comerciales.length||filtros.comerciales.includes(comercialCarteraId(ct,datos)))
     .filter(ct=>!filtros.desde||fechaContrato(ct)>=filtros.desde)
     .filter(ct=>!filtros.hasta||fechaContrato(ct)<=filtros.hasta)
-    .filter(ct=>!filtros.productos.length||filtros.productos.includes(ct.producto_id))
+    .filter(ct=>!filtros.proveedores.length||filtros.proveedores.includes(datos.comercializadoras.find(cm=>cm.id===ct.comercializadora_id)?.proveedor_id))
     .filter(ct=>!filtros.comercializadoras.length||filtros.comercializadoras.includes(ct.comercializadora_id))
     .filter(ct=>!filtros.estados.length||filtros.estados.includes(normalizarEstado(ct.estado)))
     .sort((a,b)=>fechaContrato(b).localeCompare(fechaContrato(a))||compararVersionesContrato(a,b)),
@@ -1461,7 +1461,7 @@ function Liquidaciones() {
       await recargar("contratos");
     }catch(e){alert(e.message);}finally{setGuardando("");}
   };
-  const limpiar=()=>{setFiltros({comerciales:[],desde:"",hasta:"",productos:[],comercializadoras:[],estados:[]});setLimite(200);};
+  const limpiar=()=>{setFiltros({comerciales:[],desde:"",hasta:"",proveedores:[],comercializadoras:[],estados:[]});setLimite(200);};
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
@@ -1473,7 +1473,7 @@ function Liquidaciones() {
           <Field label="Comercial"><MultiSel label="Todos" values={filtros.comerciales} onChange={v=>{setFiltros({...filtros,comerciales:v});setLimite(200);}} width="100%" options={comerciales.map(u=>({value:u.id,label:u.nombre}))}/></Field>
           <Field label="Fecha desde"><Input type="date" value={filtros.desde} onChange={e=>{setFiltros({...filtros,desde:e.target.value});setLimite(200);}}/></Field>
           <Field label="Fecha hasta"><Input type="date" value={filtros.hasta} onChange={e=>{setFiltros({...filtros,hasta:e.target.value});setLimite(200);}}/></Field>
-          <Field label="Producto"><MultiSel label="Todos" values={filtros.productos} onChange={v=>{setFiltros({...filtros,productos:v});setLimite(200);}} width="100%" options={productos.map(p=>({value:p.id,label:p.nombre}))}/></Field>
+          <Field label="Proveedor"><MultiSel label="Todos" values={filtros.proveedores} onChange={v=>{setFiltros({...filtros,proveedores:v});setLimite(200);}} width="100%" options={proveedores.map(p=>({value:p.id,label:p.nombre}))}/></Field>
           <Field label="Comercializadora"><MultiSel label="Todas" values={filtros.comercializadoras} onChange={v=>{setFiltros({...filtros,comercializadoras:v});setLimite(200);}} width="100%" options={comercializadoras.map(cm=>({value:cm.id,label:cm.nombre}))}/></Field>
           <Field label="Estado"><MultiSel label="Todos" values={filtros.estados} onChange={v=>{setFiltros({...filtros,estados:v});setLimite(200);}} width="100%" options={estados.map(x=>({value:x,label:ESTADOS[x]?.label||x}))}/></Field>
           <Btn kind="ghost" onClick={limpiar}>Limpiar</Btn>
@@ -1494,7 +1494,7 @@ function Liquidaciones() {
       <Card style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:1220}}>
           <thead><tr>
-            <TH>Cliente / CUPS</TH><TH>Fecha</TH><TH>Comercial</TH><TH>Producto</TH><TH>Comercializadora</TH><TH>Estado</TH><TH right>Comisión prevista</TH><TH right>Comisión recibida</TH><TH right>Diferencia</TH><TH>Resultado</TH>
+            <TH>Cliente / CUPS</TH><TH>Fecha</TH><TH>Comercial</TH><TH>Comercializadora</TH><TH>Producto</TH><TH>Estado</TH><TH right>Comisión prevista</TH><TH right>Comisión recibida</TH><TH right>Diferencia</TH><TH>Resultado</TH>
           </tr></thead>
           <tbody>
             {contratos.slice(0,limite).map(ct=>{
@@ -1513,7 +1513,7 @@ function Liquidaciones() {
               return (
                 <tr key={ct.id} style={{background:bg,borderBottom:"1px solid "+C.line}}>
                   <TD><button onClick={()=>setSel({tipo:"contrato",id:ct.id})} style={{fontWeight:700,color:C.ink,background:"none",border:0,padding:0,cursor:"pointer",textAlign:"left"}}>{cl?.razon_social||"Sin cliente"}</button><div style={{fontSize:11,color:C.mut,marginTop:2}}>{ct.cups}</div></TD>
-                  <TD style={{whiteSpace:"nowrap"}}>{fmtF(fechaContrato(ct))}</TD><TD>{com?.nombre||"—"}</TD><TD>{pr?.nombre||ct.tarifa||"—"}</TD><TD>{cm?.nombre||"—"}</TD><TD><Badge fg={C.info} bg={C.infoBg}>{normalizarEstado(ct.estado)||"—"}</Badge></TD>
+                  <TD style={{whiteSpace:"nowrap"}}>{fmtF(fechaContrato(ct))}</TD><TD>{com?.nombre||"—"}</TD><TD>{cm?.nombre||"—"}</TD><TD>{pr?.nombre||ct.tarifa||"—"}</TD><TD><Badge fg={C.info} bg={C.infoBg}>{normalizarEstado(ct.estado)||"—"}</Badge></TD>
                   <TD right><div style={{display:"flex",justifyContent:"flex-end",gap:5,alignItems:"center"}}><Input type="number" step="0.01" value={previstaValor} placeholder="Obligatoria" onChange={e=>setPrevEdit({...prevEdit,[ct.id]:e.target.value})} disabled={!can.modificarLiq(yo)} style={{width:94,textAlign:"right",background:prevista===null?"#FFF7F5":"white",borderColor:prevista===null?C.err:C.line}}/>{can.modificarLiq(yo)&&<Btn small kind={prevista===null?"danger":"ghost"} disabled={guardando==="p"+ct.id||previstaValor===""} onClick={()=>guardarPrevista(ct)}>{guardando==="p"+ct.id?"…":"Guardar"}</Btn>}</div></TD>
                   <TD right><div style={{display:"flex",justifyContent:"flex-end",gap:5,alignItems:"center"}}><Input type="number" step="0.01" value={recibidaValor} placeholder="Pendiente" onChange={e=>setRecEdit({...recEdit,[ct.id]:e.target.value})} disabled={!can.modificarLiq(yo)} style={{width:94,textAlign:"right",background:"white"}}/>{can.modificarLiq(yo)&&<Btn small kind="ghost" disabled={guardando==="r"+ct.id||recibidaValor===""} onClick={()=>guardarRecibida(ct)}>{guardando==="r"+ct.id?"…":"Guardar"}</Btn>}</div></TD>
                   <TD right style={{fontWeight:700,color:diferencia===null?C.mut:diferencia===0?C.info:C.warn,whiteSpace:"nowrap"}}>{diferencia===null?"—":fmtE(diferencia)}</TD>
@@ -2900,7 +2900,6 @@ function ModalAnadirLineasLiq() {
   const preProveedor=datos.comercializadoras.find(cm=>cm.id===preCt?.comercializadora_id)?.proveedor_id;
   const [liquidacionId,setLiquidacionId]=useState(modal.liqId||liquidaciones.find(l=>l.proveedor_id===preProveedor)?.id||liquidaciones[0]?.id||"");
   const [busqueda,setBusqueda]=useState("");
-  const [productosSel,setProductosSel]=useState([]);
   const [comercializadorasSel,setComercializadorasSel]=useState([]);
   const [todosEstados,setTodosEstados]=useState(false);
   const [seleccion,setSeleccion]=useState(new Set(modal.preselectId?[modal.preselectId]:[]));
@@ -2911,12 +2910,11 @@ function ModalAnadirLineasLiq() {
   const proveedor=datos.proveedores.find(p=>p.id===liquidacion?.proveedor_id);
   const comercializadoras=[...datos.comercializadoras].filter(cm=>!liquidacion||cm.proveedor_id===liquidacion.proveedor_id).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
   const cmIds=new Set(comercializadoras.map(cm=>cm.id));
-  const productos=[...datos.productos].filter(p=>cmIds.has(p.comercializadora_id)).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
   const actuales=contratosActuales(datos.contratos).filter(ct=>(can.verTodasLiq(yo)||comercialCarteraId(ct,datos)===yo?.id)&&(!liquidacion||cmIds.has(ct.comercializadora_id)));
   const lista=actuales.filter(ct=>{
     const cl=datos.clientes.find(c=>c.id===ct.cliente_id);
     const texto=norm([cl?.razon_social,cl?.cif,cl?.nif,ct.cups].join(" "));
-    return (todosEstados||normalizarEstado(ct.estado)==="activado")&&(!busqueda||texto.includes(norm(busqueda)))&&(!productosSel.length||productosSel.includes(ct.producto_id))&&(!comercializadorasSel.length||comercializadorasSel.includes(ct.comercializadora_id));
+    return (todosEstados||normalizarEstado(ct.estado)==="activado")&&(!busqueda||texto.includes(norm(busqueda)))&&(!comercializadorasSel.length||comercializadorasSel.includes(ct.comercializadora_id));
   }).sort((a,b)=>String(b.fecha_activacion||b.fecha_registro||"").localeCompare(String(a.fecha_activacion||a.fecha_registro||"")));
   const lineaEnLiquidacion=contratoId=>(datos.lineas||[]).find(l=>l.liquidacion_id===liquidacionId&&l.contrato_id===contratoId&&l.concepto==="Comisión");
   const valor=(ct,campo)=>Object.prototype.hasOwnProperty.call(edits[ct.id]||{},campo)?edits[ct.id][campo]:(campo==="prevista"?ct.comision_calculada??"":lineaEnLiquidacion(ct.id)?.importe??"");
@@ -2948,14 +2946,14 @@ function ModalAnadirLineasLiq() {
   return (
     <Modal title="Añadir líneas a liquidaciones" onClose={()=>setModal(null)} xwide>
       <Card style={{padding:12,marginBottom:12,background:C.infoBg}}>
-        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,alignItems:"end"}}><Field label="LIQUIDACIÓN DESTINO"><Sel value={liquidacionId} onChange={e=>{setLiquidacionId(e.target.value);setSeleccion(new Set());setEdits({});setProductosSel([]);setComercializadorasSel([]);}}><option value="">Selecciona…</option>{liquidaciones.map(l=>{const pv=datos.proveedores.find(p=>p.id===l.proveedor_id);return <option key={l.id} value={l.id}>{pv?.nombre||"Proveedor"} · {fmtF(l.fecha)} · {l.periodo}</option>;})}</Sel></Field><CampoFicha label="Proveedor" valor={proveedor?.nombre||"—"}/><CampoFicha label="Fecha de liquidación" valor={fmtF(liquidacion?.fecha)}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:12,alignItems:"end"}}><Field label="LIQUIDACIÓN DESTINO"><Sel value={liquidacionId} onChange={e=>{setLiquidacionId(e.target.value);setSeleccion(new Set());setEdits({});setComercializadorasSel([]);}}><option value="">Selecciona…</option>{liquidaciones.map(l=>{const pv=datos.proveedores.find(p=>p.id===l.proveedor_id);return <option key={l.id} value={l.id}>{pv?.nombre||"Proveedor"} · {fmtF(l.fecha)} · {l.periodo}</option>;})}</Sel></Field><CampoFicha label="Proveedor" valor={proveedor?.nombre||"—"}/><CampoFicha label="Fecha de liquidación" valor={fmtF(liquidacion?.fecha)}/></div>
         {!liquidaciones.length&&<div style={{fontSize:12,color:C.err}}>Primero debes crear una liquidación.</div>}
       </Card>
       <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1.2fr auto",gap:10,alignItems:"end",marginBottom:4}}>
         <Field label="Buscar razón social, CIF o CUPS"><div style={{position:"relative"}}><Search size={14} style={{position:"absolute",left:10,top:10,color:C.mut}}/><Input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Escribe para buscar…" style={{paddingLeft:31}}/></div></Field>
-        <Field label="Producto"><MultiSel label="Todos" values={productosSel} onChange={setProductosSel} width="100%" options={productos.map(p=>({value:p.id,label:p.nombre}))}/></Field>
+        <Field label="Proveedor"><Sel value={proveedor?.id||""} disabled><option value={proveedor?.id||""}>{proveedor?.nombre||"Selecciona una liquidación"}</option></Sel></Field>
         <Field label="Comercializadora"><MultiSel label="Todas" values={comercializadorasSel} onChange={setComercializadorasSel} width="100%" options={comercializadoras.map(cm=>({value:cm.id,label:cm.nombre}))}/></Field>
-        <Btn kind="ghost" onClick={()=>{setBusqueda("");setProductosSel([]);setComercializadorasSel([]);}}>Limpiar</Btn>
+        <Btn kind="ghost" onClick={()=>{setBusqueda("");setComercializadorasSel([]);}}>Limpiar</Btn>
       </div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:10,flexWrap:"wrap"}}>
         <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={todosEstados} onChange={e=>setTodosEstados(e.target.checked)}/> Mostrar contratos de todos los estados <span style={{color:C.mut}}>(por defecto solo ACTIVADO)</span></label>
@@ -2963,12 +2961,12 @@ function ModalAnadirLineasLiq() {
       </div>
       <Card style={{overflow:"auto",maxHeight:"52vh"}}>
         <table style={{width:"100%",minWidth:1100,borderCollapse:"collapse"}}>
-          <thead style={{position:"sticky",top:0,background:C.panel,zIndex:2}}><tr><TH><input type="checkbox" checked={todasMarcadas} onChange={toggleTodas} title="Seleccionar los contratos visibles"/></TH><TH>Razón social</TH><TH>CUPS</TH><TH>Fecha activación</TH><TH>Producto</TH><TH>Comercializadora</TH><TH right>Comisión prevista</TH><TH right>Comisión recibida</TH></tr></thead>
+          <thead style={{position:"sticky",top:0,background:C.panel,zIndex:2}}><tr><TH><input type="checkbox" checked={todasMarcadas} onChange={toggleTodas} title="Seleccionar los contratos visibles"/></TH><TH>Razón social</TH><TH>CUPS</TH><TH>Fecha activación</TH><TH>Comercializadora</TH><TH>Producto</TH><TH right>Comisión prevista</TH><TH right>Comisión recibida</TH></tr></thead>
           <tbody>{lista.map(ct=>{
             const cl=datos.clientes.find(c=>c.id===ct.cliente_id),cm=datos.comercializadoras.find(c=>c.id===ct.comercializadora_id),pr=datos.productos.find(p=>p.id===ct.producto_id);
             const prevista=valor(ct,"prevista"),recibida=valor(ct,"recibida"),marcada=seleccion.has(ct.id);
             return <tr key={ct.id} style={{background:marcada?C.infoBg:prevista===""?C.errBg:"white",borderTop:"1px solid "+C.line}}>
-              <TD><input type="checkbox" checked={marcada} onChange={()=>toggle(ct.id)}/></TD><TD style={{fontWeight:700}}>{cl?.razon_social||"Sin cliente"}</TD><TD style={{fontSize:12,whiteSpace:"nowrap"}}>{ct.cups}</TD><TD style={{whiteSpace:"nowrap"}}>{fmtF(ct.fecha_activacion)}</TD><TD>{pr?.nombre||ct.tarifa||"—"}</TD><TD>{cm?.nombre||"—"}</TD>
+              <TD><input type="checkbox" checked={marcada} onChange={()=>toggle(ct.id)}/></TD><TD style={{fontWeight:700}}>{cl?.razon_social||"Sin cliente"}</TD><TD style={{fontSize:12,whiteSpace:"nowrap"}}>{ct.cups}</TD><TD style={{whiteSpace:"nowrap"}}>{fmtF(ct.fecha_activacion)}</TD><TD>{cm?.nombre||"—"}</TD><TD>{pr?.nombre||ct.tarifa||"—"}</TD>
               <TD right><Input type="number" min="0" step="0.01" value={prevista} onChange={e=>cambiar(ct.id,"prevista",e.target.value)} placeholder="Obligatoria" style={{width:105,textAlign:"right",borderColor:prevista===""?C.err:C.line}}/></TD>
               <TD right><Input type="number" min="0" step="0.01" value={recibida} onChange={e=>cambiar(ct.id,"recibida",e.target.value)} placeholder="Importe" style={{width:105,textAlign:"right"}}/></TD>
             </tr>;
