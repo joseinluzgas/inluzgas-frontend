@@ -74,6 +74,7 @@ const ESTADOS = {
   cancelado:    { label:"Cancelado",      fg:C.grey, bg:C.greyBg },
 };
 const normalizarEstado = normalizarEstadoContrato;
+const fechaComisionContrato = ct => ct?.fecha_comisionado || (normalizarEstado(ct?.estado)==="comisionado" ? String(ct?.estado_at||"").slice(0,10) : "");
 const CONCEPTOS = ["Comisión","Regularización","Penalización","Adelanto","Devolución"];
 const ROLES = ["Master","Manager","Jefe de Equipo","Comercial"];
 const TIPOS_VIA = ["Alameda","Autovía","Avenida","Bajada","Barrio","Calle","Callejón","Camino","Carretera","Cañada","Colonia","Conjunto","Cuesta","Diseminado","Entrada","Explanada","Glorieta","Gran Vía","Grupo","Jardines","Lugar","Muelle","Paraje","Parque","Pasadizo","Pasaje","Paseo","Plaza","Polígono","Prolongación","Puente","Rambla","Ronda","Rotonda","Rúa","Sector","Senda","Subida","Travesía","Urbanización","Vía","Vereda"];
@@ -915,7 +916,7 @@ function ContratoDetalle({id, volver}) {
             <CampoFicha label="Registro" valor={fmtF(ct.fecha_registro)}/>
             <CampoFicha label="Envío" valor={fmtF(ct.fecha_envio)}/>
             <CampoFicha label="Activación" valor={fmtF(ct.fecha_activacion)}/>
-            <CampoFicha label="Fecha de comisión" valor={fmtF(ct.fecha_comisionado)}/>
+            <CampoFicha label="Fecha de comisión" valor={fmtF(fechaComisionContrato(ct))}/>
             <CampoFicha label="Renovación" valor={
               ct.fecha_renovacion
                 ? <span style={{color:diasRenov!=null&&diasRenov<=90?(diasRenov<=30?C.err:C.warn):C.ink,fontWeight:600}}>
@@ -1470,7 +1471,7 @@ function Liquidaciones() {
     if(!window.confirm(`¿Confirmar este contrato como liquidado por ${fmtE(recibida)}?`))return;
     setGuardando("c"+ct.id);
     try{
-      await db.upd("contratos","id=eq."+ct.id,{estado:"comisionado",fecha_comisionado:hoy(),estado_at:new Date().toISOString()});
+      await db.upd("contratos","id=eq."+ct.id,{estado:"comisionado",estado_at:new Date().toISOString()});
       await db.ins("eventos",{origen:"CRM",tipo:"contrato.comisionado",ref:ct.id,detalle:`Comisión liquidada ${fmtE(recibida)} · ${ct.cups}`});
       await recargar("contratos");
     }catch(e){alert(e.message);}finally{setGuardando("");}
@@ -1566,7 +1567,7 @@ function Liquidaciones() {
                   <TD right><div style={{display:"flex",justifyContent:"flex-end",gap:5,alignItems:"center"}}><Input type="number" step="0.01" value={previstaValor} placeholder="Obligatoria" onChange={e=>setPrevEdit({...prevEdit,[ct.id]:e.target.value})} disabled={!can.modificarLiq(yo)} style={{width:94,textAlign:"right",background:prevista===null?"#FFF7F5":"white",borderColor:prevista===null?C.err:C.line}}/>{can.modificarLiq(yo)&&<Btn small kind={prevista===null?"danger":"ghost"} disabled={guardando==="p"+ct.id||previstaValor===""} onClick={()=>guardarPrevista(ct)}>{guardando==="p"+ct.id?"…":"Guardar"}</Btn>}</div></TD>
                   <TD right><div style={{display:"flex",justifyContent:"flex-end",gap:5,alignItems:"center"}}><Input type="number" step="0.01" value={recibidaValor} placeholder="Pendiente" onChange={e=>setRecEdit({...recEdit,[ct.id]:e.target.value})} disabled={!can.modificarLiq(yo)} style={{width:94,textAlign:"right",background:"white"}}/>{can.modificarLiq(yo)&&<Btn small kind="ghost" disabled={guardando==="r"+ct.id||recibidaValor===""} onClick={()=>guardarRecibida(ct)}>{guardando==="r"+ct.id?"…":"Guardar"}</Btn>}</div></TD>
                   <TD right style={{fontWeight:700,color:diferencia===null?C.mut:diferencia===0?C.info:C.warn,whiteSpace:"nowrap"}}>{diferencia===null?"—":fmtE(diferencia)}</TD>
-                  <TD>{diferente&&can.modificarLiq(yo)?<Btn small kind="danger" onClick={()=>setModal({t:"revisarComision",ctId:ct.id})}><AlertTriangle size={12}/> Revisar</Btn>:prevista===null?<Badge fg={C.err} bg="#FFF"><AlertTriangle size={12}/> Falta prevista</Badge>:recibida===null?<Badge fg={C.grey} bg={C.greyBg}><Clock size={12}/> Pendiente</Badge>:igual&&normalizarEstado(ct.estado)==="comisionado"?<Badge fg="#2F65A7" bg="#FFF"><CheckCircle2 size={12}/> Comisionado {fmtF(ct.fecha_comisionado)}</Badge>:igual&&can.modificarLiq(yo)?<Btn small kind="ok" disabled={guardando==="c"+ct.id} onClick={()=>confirmarLiquidado(ct)}><CheckCircle2 size={12}/> {guardando==="c"+ct.id?"Confirmando…":"Confirmar liquidado"}</Btn>:igual?<Badge fg="#2F65A7" bg="#FFF"><CheckCircle2 size={12}/> Coincide</Badge>:<Badge fg={C.warn} bg="#FFF"><AlertTriangle size={12}/> Revisar</Badge>}</TD>
+                  <TD>{diferente&&can.modificarLiq(yo)?<Btn small kind="danger" onClick={()=>setModal({t:"revisarComision",ctId:ct.id})}><AlertTriangle size={12}/> Revisar</Btn>:prevista===null?<Badge fg={C.err} bg="#FFF"><AlertTriangle size={12}/> Falta prevista</Badge>:recibida===null?<Badge fg={C.grey} bg={C.greyBg}><Clock size={12}/> Pendiente</Badge>:igual&&normalizarEstado(ct.estado)==="comisionado"?<Badge fg="#2F65A7" bg="#FFF"><CheckCircle2 size={12}/> Comisionado {fmtF(fechaComisionContrato(ct))}</Badge>:igual&&can.modificarLiq(yo)?<Btn small kind="ok" disabled={guardando==="c"+ct.id} onClick={()=>confirmarLiquidado(ct)}><CheckCircle2 size={12}/> {guardando==="c"+ct.id?"Confirmando…":"Confirmar liquidado"}</Btn>:igual?<Badge fg="#2F65A7" bg="#FFF"><CheckCircle2 size={12}/> Coincide</Badge>:<Badge fg={C.warn} bg="#FFF"><AlertTriangle size={12}/> Revisar</Badge>}</TD>
                 </tr>
               );
             })}
@@ -1619,7 +1620,7 @@ function LiqDetalle({id}) {
     if(pendientes.length){alert(`Hay ${pendientes.length} línea${pendientes.length>1?"s":""} con importes pendientes o diferentes. Revísalas antes de confirmar la liquidación.`);return;}
     if(!window.confirm(`¿Confirmar la liquidación y marcar ${comisiones.length} contrato${comisiones.length===1?"":"s"} como comisionado${comisiones.length===1?"":"s"}?`))return;
     const fecha=hoy();
-    for(const ln of comisiones)await db.upd("contratos","id=eq."+ln.contrato_id,{estado:"comisionado",fecha_comisionado:fecha,estado_at:new Date().toISOString()});
+    for(const ln of comisiones)await db.upd("contratos","id=eq."+ln.contrato_id,{estado:"comisionado",estado_at:fecha+"T"+new Date().toISOString().slice(11)});
     await db.upd("liquidaciones","id=eq."+id,{estado:"revisada"});
     await recargar("liquidaciones");
   };
@@ -2917,7 +2918,7 @@ function ModalRevisarComision() {
     if(confirmar&&Math.abs(prevista-recibida)>=0.005){alert("Para confirmar el contrato como liquidado, los dos importes deben coincidir.");return;}
     setGuardando(true);
     try{
-      await db.upd("contratos","id=eq."+ct.id,{comision_calculada:prevista,...(confirmar?{estado:"comisionado",fecha_comisionado:hoy(),estado_at:new Date().toISOString()}:{})});
+      await db.upd("contratos","id=eq."+ct.id,{comision_calculada:prevista,...(confirmar?{estado:"comisionado",estado_at:new Date().toISOString()}:{})});
       if(linea)await db.upd("lineas_liquidacion","id=eq."+linea.id,{importe:recibida});
       else{
         const liquidacion_id=await liquidacionManualPara(ct,datos,"Revisión manual");
