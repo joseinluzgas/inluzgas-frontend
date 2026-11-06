@@ -2,7 +2,7 @@ const ESTADO_EQUIVALENCIAS = {
   activo: "activado",
   activado: "activado",
   "activo ftr": "activado",
-  comisionado: "activado",
+  comisionado: "comisionado",
   alta: "activado",
   baja: "baja",
   "baja cc": "baja",

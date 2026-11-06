@@ -23,6 +23,7 @@ test("normaliza las variantes de los estados", () => {
   assert.equal(normalizarEstadoContrato("En Trámite"), "en_tramite");
   assert.equal(normalizarEstadoContrato("PDT. FIRMA"), "en_tramite");
   assert.equal(normalizarEstadoContrato("Activo FTR"), "activado");
+  assert.equal(normalizarEstadoContrato("Comisionado"), "comisionado");
   assert.equal(normalizarEstadoContrato("PDTE. RENOVAR"), "pdte_renovar");
 });
 

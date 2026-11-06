@@ -9,7 +9,7 @@ import {
   AlertTriangle, CheckCircle2, Clock, Send, RotateCcw, X, Zap, Flame,
   ChevronRight, Pencil, Ban, UserCog, Trash2, LogOut, LogIn, RefreshCw, Database,
   Mail, MessageCircle, CalendarClock, ArrowLeftRight, Copy, ChevronLeft,
-  Ticket, MessageSquarePlus
+  Ticket, MessageSquarePlus, Upload
 } from "lucide-react";
 
 /* ============================================================
@@ -65,6 +65,7 @@ const ESTADOS = {
   enviado:      { label:"Enviado",        fg:C.info, bg:C.infoBg },
   en_tramite:   { label:"En Trámite",     fg:"#7c3aed", bg:"#ede9fe" },
   activado:     { label:"Activado",       fg:C.ok,   bg:C.okBg   },
+  comisionado:  { label:"Comisionado",    fg:"#2F65A7", bg:"#E7F0FF" },
   pdte_renovar: { label:"Pdte. Renovar",  fg:"#b45309",bg:"#fef3c7" },
   pdte_grabar:  { label:"Pdte. Grabar",   fg:"#6d28d9",bg:"#ede9fe" },
   incidencia:   { label:"Incidencia",     fg:C.err,  bg:C.errBg  },
@@ -334,9 +335,9 @@ const EmailLink = ({email,fontSize=12}) => {
     </span>
   );
 };
-const Modal  = ({title,onClose,children,wide}) => (
+const Modal  = ({title,onClose,children,wide,xwide}) => (
   <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:16,background:"rgba(18,26,22,.45)"}}>
-    <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:wide?820:500,background:C.panel,borderRadius:12,overflow:"hidden",maxHeight:"92vh",display:"flex",flexDirection:"column"}}>
+    <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:xwide?1240:wide?820:500,background:C.panel,borderRadius:12,overflow:"hidden",maxHeight:"92vh",display:"flex",flexDirection:"column"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px",borderBottom:"1px solid "+C.line}}>
         <div style={{fontWeight:700,fontSize:15}}>{title}</div>
         <button onClick={onClose} style={{color:C.mut,background:"none",border:"none",cursor:"pointer"}}><X size={18}/></button>
@@ -914,6 +915,7 @@ function ContratoDetalle({id, volver}) {
             <CampoFicha label="Registro" valor={fmtF(ct.fecha_registro)}/>
             <CampoFicha label="Envío" valor={fmtF(ct.fecha_envio)}/>
             <CampoFicha label="Activación" valor={fmtF(ct.fecha_activacion)}/>
+            <CampoFicha label="Fecha de comisión" valor={fmtF(ct.fecha_comisionado)}/>
             <CampoFicha label="Renovación" valor={
               ct.fecha_renovacion
                 ? <span style={{color:diasRenov!=null&&diasRenov<=90?(diasRenov<=30?C.err:C.warn):C.ink,fontWeight:600}}>
@@ -1382,61 +1384,197 @@ function Catalogo() {
 }
 
 function Liquidaciones() {
-  const {yo,datos,setSel,setModal}=useContext(Ctx);
-  const [orden,setOrden]=useState({campo:"fecha",dir:-1});
-  const acc=(l,campo)=>{
-    if(campo==="proveedor") return datos.proveedores.find(p=>p.id===l.proveedor_id)?.nombre||"";
-    if(campo==="lineas") return datos.lineas.filter(ln=>ln.liquidacion_id===l.id).length;
-    if(campo==="total") return datos.lineas.filter(ln=>ln.liquidacion_id===l.id).reduce((a,ln)=>a+ln.importe,0);
-    return l[campo];
+  const {yo,datos,setSel,setModal,recargar}=useContext(Ctx);
+  const [filtros,setFiltros]=useState({comercial:"",desde:"",hasta:"",canal:"",comercializadora:"",estado:""});
+  const [prevEdit,setPrevEdit]=useState({});
+  const [recEdit,setRecEdit]=useState({});
+  const [guardando,setGuardando]=useState("");
+  const [importando,setImportando]=useState(false);
+  const [limite,setLimite]=useState(200);
+  const inputExcelRef=useRef();
+
+  const fechaContrato=ct=>ct.fecha_activacion||ct.fecha_registro||String(ct.created_at||"").slice(0,10);
+  const importeNumero=v=>{
+    if(typeof v==="number")return Number.isFinite(v)?v:null;
+    const s=String(v??"").trim(); if(!s)return null;
+    const limpio=s.includes(",")?s.replace(/\./g,"").replace(",", "."):s;
+    const n=Number(limpio.replace(/[^0-9.-]/g,""));
+    return Number.isFinite(n)?n:null;
   };
-  const sorted=sortBy(datos.liquidaciones,orden.campo,orden.dir,acc);
+  const lineaPorContrato=useMemo(()=>{
+    const m=new Map();
+    (datos.lineas||[]).filter(l=>l.concepto==="Comisión").forEach(l=>{
+      const ant=m.get(l.contrato_id);
+      if(!ant||String(l.created_at||l.id)>String(ant.created_at||ant.id))m.set(l.contrato_id,l);
+    });
+    return m;
+  },[datos.lineas]);
+  const comerciales=[...datos.usuarios].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+  const canales=[...new Set(datos.contratos.map(c=>String(c.canal||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
+  const comercializadoras=[...datos.comercializadoras].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+  const estados=[...new Set(datos.contratos.map(c=>normalizarEstado(c.estado)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
+  const contratos=useMemo(()=>datos.contratos
+    .filter(ct=>can.verTodasLiq(yo)||comercialCarteraId(ct,datos)===yo?.id)
+    .filter(ct=>!filtros.comercial||comercialCarteraId(ct,datos)===filtros.comercial)
+    .filter(ct=>!filtros.desde||fechaContrato(ct)>=filtros.desde)
+    .filter(ct=>!filtros.hasta||fechaContrato(ct)<=filtros.hasta)
+    .filter(ct=>!filtros.canal||String(ct.canal||"").trim()===filtros.canal)
+    .filter(ct=>!filtros.comercializadora||ct.comercializadora_id===filtros.comercializadora)
+    .filter(ct=>!filtros.estado||normalizarEstado(ct.estado)===filtros.estado)
+    .sort((a,b)=>fechaContrato(b).localeCompare(fechaContrato(a))||compararVersionesContrato(a,b)),
+  [datos,filtros,yo]);
+  const resumen=contratos.reduce((r,ct)=>{
+    const prevista=importeNumero(ct.comision_calculada);
+    const recibida=importeNumero(lineaPorContrato.get(ct.id)?.importe);
+    if(prevista===null)r.sinPrevista++;
+    else r.prevista+=prevista;
+    if(recibida!==null)r.recibida+=recibida;
+    if(prevista!==null&&recibida!==null&&Math.abs(prevista-recibida)>=0.005)r.desajustes++;
+    return r;
+  },{prevista:0,recibida:0,sinPrevista:0,desajustes:0});
+
+  const liquidacionPara=async(ct,origen,cache)=>{
+    const proveedorId=datos.comercializadoras.find(cm=>cm.id===ct.comercializadora_id)?.proveedor_id;
+    if(!proveedorId)throw new Error("La comercializadora del contrato no tiene proveedor asignado.");
+    const periodo=`${origen} ${fmtF(hoy())}`;
+    const clave=proveedorId+"|"+periodo;
+    if(cache?.has(clave))return cache.get(clave);
+    const existente=datos.liquidaciones.find(l=>l.proveedor_id===proveedorId&&l.periodo===periodo);
+    if(existente){cache?.set(clave,existente.id);return existente.id;}
+    const d=await db.ins("liquidaciones",{proveedor_id:proveedorId,periodo,fecha:hoy(),estado:"pendiente"});
+    const id=d?.data?.[0]?.id;
+    if(!id)throw new Error("No se ha podido crear la liquidación del proveedor.");
+    cache?.set(clave,id); return id;
+  };
+  const guardarPrevista=async ct=>{
+    const valor=importeNumero(Object.prototype.hasOwnProperty.call(prevEdit,ct.id)?prevEdit[ct.id]:ct.comision_calculada);
+    if(valor===null||valor<0){alert("Introduce una comisión prevista válida.");return;}
+    setGuardando("p"+ct.id);
+    try{await db.upd("contratos","id=eq."+ct.id,{comision_calculada:valor});await recargar("contratos");setPrevEdit(x=>{const n={...x};delete n[ct.id];return n;});}
+    catch(e){alert(e.message);}finally{setGuardando("");}
+  };
+  const guardarRecibida=async ct=>{
+    const linea=lineaPorContrato.get(ct.id);
+    const valor=importeNumero(Object.prototype.hasOwnProperty.call(recEdit,ct.id)?recEdit[ct.id]:linea?.importe);
+    if(valor===null||valor<0){alert("Introduce una comisión recibida válida.");return;}
+    setGuardando("r"+ct.id);
+    try{
+      if(linea)await db.upd("lineas_liquidacion","id=eq."+linea.id,{importe:valor});
+      else{const liqId=await liquidacionPara(ct,"Registro manual",new Map());await db.ins("lineas_liquidacion",{liquidacion_id:liqId,contrato_id:ct.id,concepto:"Comisión",importe:valor,pct_override:null});}
+      await recargar("lineas");await recargar("liquidaciones");setRecEdit(x=>{const n={...x};delete n[ct.id];return n;});
+    }catch(e){alert(e.message);}finally{setGuardando("");}
+  };
+  const confirmarLiquidado=async ct=>{
+    const prevista=importeNumero(ct.comision_calculada),recibida=importeNumero(lineaPorContrato.get(ct.id)?.importe);
+    if(prevista===null||recibida===null||Math.abs(prevista-recibida)>=0.005){alert("Antes de confirmar, las comisiones prevista y recibida deben estar completas y coincidir.");return;}
+    if(!window.confirm(`¿Confirmar este contrato como liquidado por ${fmtE(recibida)}?`))return;
+    setGuardando("c"+ct.id);
+    try{
+      await db.upd("contratos","id=eq."+ct.id,{estado:"comisionado",fecha_comisionado:hoy(),estado_at:new Date().toISOString()});
+      await db.ins("eventos",{origen:"CRM",tipo:"contrato.comisionado",ref:ct.id,detalle:`Comisión liquidada ${fmtE(recibida)} · ${ct.cups}`});
+      await recargar("contratos");
+    }catch(e){alert(e.message);}finally{setGuardando("");}
+  };
+  const procesarExcel=async e=>{
+    const file=e.target.files?.[0]; e.target.value=""; if(!file)return;
+    setImportando(true);
+    try{
+      const {read,utils}=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+      const wb=read(await file.arrayBuffer());
+      const filas=utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""});
+      const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toUpperCase();
+      const porCups=new Map();
+      datos.contratos.forEach(ct=>{
+        const clave=cupsBase(ct.cups);
+        const ant=porCups.get(clave);
+        if(!ant||compararVersionesContrato(ct,ant)<0)porCups.set(clave,ct);
+      });
+      const importes=new Map(); let errores=0;
+      filas.forEach(fila=>{
+        const r={};Object.entries(fila).forEach(([k,v])=>{r[norm(k)]=v;});
+        const cups=r.CUPS||r["CODIGO CUPS"]||r["PUNTO SUMINISTRO"];
+        const importe=r["COMISION RECIBIDA"]??r.COMISION??r.IMPORTE;
+        const ct=porCups.get(cupsBase(cups)); const valor=importeNumero(importe);
+        if(!ct||valor===null){errores++;return;}
+        importes.set(ct.id,{ct,valor});
+      });
+      if(!importes.size)throw new Error("No se encontraron filas válidas. El Excel debe tener las columnas CUPS y COMISIÓN RECIBIDA.");
+      const cache=new Map(); const nuevas=[]; let actualizadas=0;
+      for(const {ct,valor} of importes.values()){
+        const linea=lineaPorContrato.get(ct.id);
+        if(linea){await db.upd("lineas_liquidacion","id=eq."+linea.id,{importe:valor});actualizadas++;}
+        else{const liquidacion_id=await liquidacionPara(ct,"Importación Excel",cache);nuevas.push({liquidacion_id,contrato_id:ct.id,concepto:"Comisión",importe:valor,pct_override:null});}
+      }
+      if(nuevas.length)await db.ins("lineas_liquidacion",nuevas);
+      await recargar("lineas");await recargar("liquidaciones");
+      alert(`Importación completada: ${nuevas.length} comisiones creadas, ${actualizadas} actualizadas${errores?` y ${errores} filas no reconocidas`:""}.`);
+    }catch(err){alert("No se pudo importar el Excel: "+err.message);}finally{setImportando(false);}
+  };
+  const limpiar=()=>{setFiltros({comercial:"",desde:"",hasta:"",canal:"",comercializadora:"",estado:""});setLimite(200);};
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <div style={{fontSize:13,color:C.mut}}>Liquidaciones de proveedores y reparto a la red comercial.</div>
-        {can.modificarLiq(yo)&&<Btn onClick={()=>setModal({t:"nuevaLiq"})}><Plus size={14}/> Nueva liquidación</Btn>}
+      <input ref={inputExcelRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={procesarExcel}/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{fontSize:13,color:C.mut}}>Compara la comisión prevista de cada contrato con el importe pagado por el proveedor.</div>
+        {can.modificarLiq(yo)&&<div style={{display:"flex",gap:8}}><Btn kind="ghost" onClick={()=>setModal({t:"anadirLineasLiq"})}><Plus size={14}/> Añadir líneas</Btn><Btn onClick={()=>inputExcelRef.current?.click()} disabled={importando}><Upload size={14}/> {importando?"Importando…":"Importar Excel"}</Btn></div>}
       </div>
-      <Card>
-        <table style={{width:"100%",borderCollapse:"collapse"}}>
+      <Card style={{padding:14,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1.2fr 1fr 1fr 1fr 1.2fr 1fr auto",gap:10,alignItems:"end"}}>
+          <Field label="Comercial"><Sel value={filtros.comercial} onChange={e=>{setFiltros({...filtros,comercial:e.target.value});setLimite(200);}}><option value="">Todos</option>{comerciales.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}</Sel></Field>
+          <Field label="Fecha desde"><Input type="date" value={filtros.desde} onChange={e=>{setFiltros({...filtros,desde:e.target.value});setLimite(200);}}/></Field>
+          <Field label="Fecha hasta"><Input type="date" value={filtros.hasta} onChange={e=>{setFiltros({...filtros,hasta:e.target.value});setLimite(200);}}/></Field>
+          <Field label="Canal"><Sel value={filtros.canal} onChange={e=>{setFiltros({...filtros,canal:e.target.value});setLimite(200);}}><option value="">Todos</option>{canales.map(x=><option key={x}>{x}</option>)}</Sel></Field>
+          <Field label="Comercializadora"><Sel value={filtros.comercializadora} onChange={e=>{setFiltros({...filtros,comercializadora:e.target.value});setLimite(200);}}><option value="">Todas</option>{comercializadoras.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</Sel></Field>
+          <Field label="Estado"><Sel value={filtros.estado} onChange={e=>{setFiltros({...filtros,estado:e.target.value});setLimite(200);}}><option value="">Todos</option>{estados.map(x=><option key={x}>{x}</option>)}</Sel></Field>
+          <Btn kind="ghost" onClick={limpiar}>Limpiar</Btn>
+        </div>
+      </Card>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(150px,1fr))",gap:10,marginBottom:14}}>
+        <Card style={{padding:14}}><div style={{fontSize:11,color:C.mut,textTransform:"uppercase"}}>Comisión prevista</div><div style={{fontSize:22,fontWeight:800,marginTop:3}}>{fmtE(resumen.prevista)}</div></Card>
+        <Card style={{padding:14}}><div style={{fontSize:11,color:C.mut,textTransform:"uppercase"}}>Comisión recibida</div><div style={{fontSize:22,fontWeight:800,marginTop:3}}>{fmtE(resumen.recibida)}</div></Card>
+        <Card style={{padding:14,background:resumen.sinPrevista?C.errBg:"white"}}><div style={{fontSize:11,color:resumen.sinPrevista?C.err:C.mut,textTransform:"uppercase"}}>Sin comisión prevista</div><div style={{fontSize:22,fontWeight:800,marginTop:3,color:resumen.sinPrevista?C.err:C.ink}}>{resumen.sinPrevista}</div></Card>
+        <Card style={{padding:14,background:resumen.desajustes?C.warnBg:"white"}}><div style={{fontSize:11,color:resumen.desajustes?C.warn:C.mut,textTransform:"uppercase"}}>Diferencias</div><div style={{fontSize:22,fontWeight:800,marginTop:3,color:resumen.desajustes?C.warn:C.ink}}>{resumen.desajustes}</div></Card>
+      </div>
+      <div style={{display:"flex",gap:14,alignItems:"center",fontSize:12,color:C.mut,marginBottom:9,flexWrap:"wrap"}}>
+        <span><i style={{display:"inline-block",width:11,height:11,borderRadius:3,background:"#E7F0FF",border:"1px solid #8EB1E1",marginRight:5}}/>Coincide</span>
+        <span><i style={{display:"inline-block",width:11,height:11,borderRadius:3,background:C.warnBg,border:"1px solid #E2B45A",marginRight:5}}/>Importes diferentes</span>
+        <span><i style={{display:"inline-block",width:11,height:11,borderRadius:3,background:C.errBg,border:"1px solid #E19A91",marginRight:5}}/>Falta comisión prevista</span>
+        <span style={{marginLeft:"auto"}}>Excel: columnas <b>CUPS</b> y <b>COMISIÓN RECIBIDA</b></span>
+      </div>
+      <Card style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:1220}}>
           <thead><tr>
-            <THSort campo="proveedor" orden={orden} setOrden={setOrden}>Proveedor</THSort>
-            <THSort campo="periodo" orden={orden} setOrden={setOrden}>Periodo</THSort>
-            <THSort campo="fecha" orden={orden} setOrden={setOrden}>Fecha</THSort>
-            <THSort campo="lineas" orden={orden} setOrden={setOrden} right>Líneas</THSort>
-            <THSort campo="total" orden={orden} setOrden={setOrden} right>Total</THSort>
-            <TH>Verificación</TH>
-            <THSort campo="estado" orden={orden} setOrden={setOrden}>Estado</THSort>
-            <TH right></TH>
+            <TH>Cliente / CUPS</TH><TH>Fecha</TH><TH>Comercial</TH><TH>Canal</TH><TH>Comercializadora</TH><TH>Estado</TH><TH right>Comisión prevista</TH><TH right>Comisión recibida</TH><TH right>Diferencia</TH><TH>Resultado</TH>
           </tr></thead>
           <tbody>
-            {sorted.map(l=>{
-              const pv=datos.proveedores.find(p=>p.id===l.proveedor_id);
-              const lins=datos.lineas.filter(ln=>ln.liquidacion_id===l.id);
-              const total=lins.reduce((a,ln)=>a+ln.importe,0);
-              const disc=lins.filter(ln=>{
-                if(ln.concepto!=="Comisión")return false;
-                const ct=datos.contratos.find(c=>c.id===ln.contrato_id);
-                const pr=datos.productos.find(p=>p.id===ct?.producto_id);
-                return pr&&Math.abs(ln.importe-(pr.comision_bruta??0))>0.005;
-              }).length;
+            {contratos.slice(0,limite).map(ct=>{
+              const cl=datos.clientes.find(c=>c.id===ct.cliente_id);
+              const com=comercialCartera(ct,datos);
+              const cm=datos.comercializadoras.find(c=>c.id===ct.comercializadora_id);
+              const linea=lineaPorContrato.get(ct.id);
+              const prevista=importeNumero(ct.comision_calculada),recibida=importeNumero(linea?.importe);
+              const igual=prevista!==null&&recibida!==null&&Math.abs(prevista-recibida)<0.005;
+              const diferente=prevista!==null&&recibida!==null&&!igual;
+              const diferencia=prevista!==null&&recibida!==null?recibida-prevista:null;
+              const bg=prevista===null?C.errBg:igual?"#E7F0FF":diferente?C.warnBg:"white";
+              const previstaValor=Object.prototype.hasOwnProperty.call(prevEdit,ct.id)?prevEdit[ct.id]:(prevista??"");
+              const recibidaValor=Object.prototype.hasOwnProperty.call(recEdit,ct.id)?recEdit[ct.id]:(recibida??"");
               return (
-                <tr key={l.id} style={{cursor:"pointer"}} onClick={()=>setSel({tipo:"liq",id:l.id})}>
-                  <TD><span style={{fontWeight:600}}>{pv?.nombre}</span></TD>
-                  <TD>{l.periodo}</TD>
-                  <TD style={{color:C.mut}}>{fmtF(l.fecha)}</TD>
-                  <TD right>{lins.length}</TD>
-                  <TD right style={{fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmtE(total)}</TD>
-                  <TD>{disc?<Badge fg={C.err} bg={C.errBg}><AlertTriangle size={12}/> {disc} discrepancia{disc>1?"s":""}</Badge>:<Badge fg={C.ok} bg={C.okBg}><CheckCircle2 size={12}/> Cuadra</Badge>}</TD>
-                  <TD>{l.estado==="revisada"?<Badge fg={C.ok} bg={C.okBg}>Revisada</Badge>:<Badge fg={C.warn} bg={C.warnBg}>Pendiente</Badge>}</TD>
-                  <TD right><ChevronRight size={15} style={{color:C.mut}}/></TD>
+                <tr key={ct.id} style={{background:bg,borderBottom:"1px solid "+C.line}}>
+                  <TD><button onClick={()=>setSel({tipo:"contrato",id:ct.id})} style={{fontWeight:700,color:C.ink,background:"none",border:0,padding:0,cursor:"pointer",textAlign:"left"}}>{cl?.razon_social||"Sin cliente"}</button><div style={{fontSize:11,color:C.mut,marginTop:2}}>{ct.cups}</div></TD>
+                  <TD style={{whiteSpace:"nowrap"}}>{fmtF(fechaContrato(ct))}</TD><TD>{com?.nombre||"—"}</TD><TD>{ct.canal||"—"}</TD><TD>{cm?.nombre||"—"}</TD><TD><Badge fg={C.info} bg={C.infoBg}>{normalizarEstado(ct.estado)||"—"}</Badge></TD>
+                  <TD right><div style={{display:"flex",justifyContent:"flex-end",gap:5,alignItems:"center"}}><Input type="number" step="0.01" value={previstaValor} placeholder="Obligatoria" onChange={e=>setPrevEdit({...prevEdit,[ct.id]:e.target.value})} disabled={!can.modificarLiq(yo)} style={{width:94,textAlign:"right",background:prevista===null?"#FFF7F5":"white",borderColor:prevista===null?C.err:C.line}}/>{can.modificarLiq(yo)&&<Btn small kind={prevista===null?"danger":"ghost"} disabled={guardando==="p"+ct.id||previstaValor===""} onClick={()=>guardarPrevista(ct)}>{guardando==="p"+ct.id?"…":"Guardar"}</Btn>}</div></TD>
+                  <TD right><div style={{display:"flex",justifyContent:"flex-end",gap:5,alignItems:"center"}}><Input type="number" step="0.01" value={recibidaValor} placeholder="Pendiente" onChange={e=>setRecEdit({...recEdit,[ct.id]:e.target.value})} disabled={!can.modificarLiq(yo)} style={{width:94,textAlign:"right",background:"white"}}/>{can.modificarLiq(yo)&&<Btn small kind="ghost" disabled={guardando==="r"+ct.id||recibidaValor===""} onClick={()=>guardarRecibida(ct)}>{guardando==="r"+ct.id?"…":"Guardar"}</Btn>}</div></TD>
+                  <TD right style={{fontWeight:700,color:diferencia===null?C.mut:diferencia===0?C.info:C.warn,whiteSpace:"nowrap"}}>{diferencia===null?"—":fmtE(diferencia)}</TD>
+                  <TD>{diferente&&can.modificarLiq(yo)?<Btn small kind="danger" onClick={()=>setModal({t:"revisarComision",ctId:ct.id})}><AlertTriangle size={12}/> Revisar</Btn>:prevista===null?<Badge fg={C.err} bg="#FFF"><AlertTriangle size={12}/> Falta prevista</Badge>:recibida===null?<Badge fg={C.grey} bg={C.greyBg}><Clock size={12}/> Pendiente</Badge>:igual&&normalizarEstado(ct.estado)==="comisionado"?<Badge fg="#2F65A7" bg="#FFF"><CheckCircle2 size={12}/> Comisionado {fmtF(ct.fecha_comisionado)}</Badge>:igual&&can.modificarLiq(yo)?<Btn small kind="ok" disabled={guardando==="c"+ct.id} onClick={()=>confirmarLiquidado(ct)}><CheckCircle2 size={12}/> {guardando==="c"+ct.id?"Confirmando…":"Confirmar liquidado"}</Btn>:igual?<Badge fg="#2F65A7" bg="#FFF"><CheckCircle2 size={12}/> Coincide</Badge>:<Badge fg={C.warn} bg="#FFF"><AlertTriangle size={12}/> Revisar</Badge>}</TD>
                 </tr>
               );
             })}
-            {sorted.length===0&&<tr><TD colSpan={8} style={{color:C.mut}}>Sin liquidaciones.</TD></tr>}
+            {contratos.length===0&&<tr><TD colSpan={10} style={{color:C.mut}}>No hay contratos con estos filtros.</TD></tr>}
           </tbody>
         </table>
       </Card>
+      {contratos.length>limite&&<div style={{display:"flex",justifyContent:"center",marginTop:12}}><Btn kind="ghost" onClick={()=>setLimite(x=>x+200)}>Mostrar 200 más ({contratos.length-limite} pendientes)</Btn></div>}
     </div>
   );
 }
@@ -1472,6 +1610,19 @@ function LiqDetalle({id}) {
     await POST("/api/tramos",{id:tr.id,producto_id:ct.producto_id,desde:tr.desde,hasta:tr.hasta,potencia:tr.potencia,tarifa_acceso:tr.tarifa_acceso,comision:ln.importe});
     await recargar("comision_tramos");
   };
+  const confirmarLiquidacion=async()=>{
+    const comisiones=lins.filter(ln=>ln.concepto==="Comisión");
+    const pendientes=comisiones.filter(ln=>{
+      const ct=datos.contratos.find(c=>c.id===ln.contrato_id);
+      return ct?.comision_calculada==null||Math.abs(Number(ct.comision_calculada)-Number(ln.importe))>=0.005;
+    });
+    if(pendientes.length){alert(`Hay ${pendientes.length} línea${pendientes.length>1?"s":""} con importes pendientes o diferentes. Revísalas antes de confirmar la liquidación.`);return;}
+    if(!window.confirm(`¿Confirmar la liquidación y marcar ${comisiones.length} contrato${comisiones.length===1?"":"s"} como comisionado${comisiones.length===1?"":"s"}?`))return;
+    const fecha=hoy();
+    for(const ln of comisiones)await db.upd("contratos","id=eq."+ln.contrato_id,{estado:"comisionado",fecha_comisionado:fecha,estado_at:new Date().toISOString()});
+    await db.upd("liquidaciones","id=eq."+id,{estado:"revisada"});
+    await recargar("liquidaciones");
+  };
   const reparto={};
   lins.forEach(ln=>{
     const ct=datos.contratos.find(c=>c.id===ln.contrato_id);
@@ -1494,7 +1645,7 @@ function LiqDetalle({id}) {
           </div>
           <div style={{display:"flex",gap:8}}>
             {can.modificarLiq(yo)&&<Btn kind="ghost" onClick={()=>setModal({t:"nuevaLinea",liqId:id})}><Plus size={14}/> Añadir línea</Btn>}
-            {can.revisarLiq(yo)&&l.estado!=="revisada"&&<Btn kind="ok" onClick={async()=>{await db.upd("liquidaciones","id=eq."+id,{estado:"revisada"});await recargar("liquidaciones");}}><CheckCircle2 size={14}/> Marcar revisada</Btn>}
+            {can.revisarLiq(yo)&&l.estado!=="revisada"&&<Btn kind="ok" onClick={confirmarLiquidacion}><CheckCircle2 size={14}/> Confirmar liquidación</Btn>}
           </div>
         </div>
       </Card>
@@ -2546,9 +2697,9 @@ function ModalNuevoContrato() {
   const [tipo,setTipo]=useState("luz");
   const [f,setF]=useState({
     cliente_id:modal.clienteId||clientesV[0]?.id||"",
-    comercializadora_luz:"",producto_luz:"",cups_luz:"",tiposol_luz:"C1",
+    comercializadora_luz:"",producto_luz:"",cups_luz:"",tiposol_luz:"C1",comision_prevista_luz:"",
     potencia_p1:"",potencia_p2:"",potencia_p3:"",potencia_p4:"",potencia_p5:"",potencia_p6:"",
-    comercializadora_gas:"",producto_gas:"",cups_gas:"",tiposol_gas:"C1",
+    comercializadora_gas:"",producto_gas:"",cups_gas:"",tiposol_gas:"C1",comision_prevista_gas:"",
     permanencia:"NO",renovacion_auto:"NO",cambio_tit:"NO",cambio_pot:"NO",
     facturae:1,iban:"",observaciones:"",cnae:"",autoconsumo:"NO",servicios:"",canal:"",
     duracion_meses:12,
@@ -2569,6 +2720,7 @@ function ModalNuevoContrato() {
   const prGas=datos.productos.find(p=>p.id===prIdGas);
   const esLuz=tipo==="luz"||tipo==="dual";
   const esGas=tipo==="gas"||tipo==="dual";
+  const comisionValida=v=>v!==""&&Number.isFinite(Number(String(v).replace(",",".")))&&Number(String(v).replace(",","."))>=0;
 
   const buscarCPCups=async cp=>{
     if(cp.length!==5)return; setCargandoCP(true);
@@ -2585,8 +2737,8 @@ function ModalNuevoContrato() {
 
   const guardar=async()=>{
     const base={cliente_id:f.cliente_id,comercial_cartera_id:cl?.comercial_id||yo?.id||null,comercial_import:null,estado:"borrador",id_inergia:null,duracion_meses:f.duracion_meses,permanencia:f.permanencia,renovacion_auto:f.renovacion_auto,cambio_tit:f.cambio_tit,cambio_pot:f.cambio_pot,facturae:f.facturae,iban:f.iban,observaciones:f.observaciones,cnae:f.cnae,autoconsumo:f.autoconsumo,servicios:f.servicios,canal:f.canal,calle_cups:f.direccion_cups,numero_cups:f.numero_cups,planta_cups:f.planta_cups,puerta_cups:f.letra_cups,aclarador_cups:f.aclarador_cups,codpostal_cups:f.codpostal_cups,provincia_cups:f.provincia_cups,localidad_cups:f.localidad_cups};
-    if(esLuz)await db.ins("contratos",{...base,tipo:"luz",cups:f.cups_luz,comercializadora_id:f.comercializadora_luz,producto_id:prIdLuz,tiposol:f.tiposol_luz,potencia_p1:parseFloat(f.potencia_p1)||0,potencia_p2:parseFloat(f.potencia_p2)||0,potencia_p3:parseFloat(f.potencia_p3)||0,potencia_p4:parseFloat(f.potencia_p4)||0,potencia_p5:parseFloat(f.potencia_p5)||0,potencia_p6:parseFloat(f.potencia_p6)||0});
-    if(esGas)await db.ins("contratos",{...base,tipo:"gas",cups:f.cups_gas,comercializadora_id:f.comercializadora_gas,producto_id:prIdGas,tiposol:f.tiposol_gas});
+    if(esLuz)await db.ins("contratos",{...base,tipo:"luz",cups:f.cups_luz,comercializadora_id:f.comercializadora_luz,producto_id:prIdLuz,tiposol:f.tiposol_luz,comision_calculada:parseFloat(String(f.comision_prevista_luz).replace(",",".")),potencia_p1:parseFloat(f.potencia_p1)||0,potencia_p2:parseFloat(f.potencia_p2)||0,potencia_p3:parseFloat(f.potencia_p3)||0,potencia_p4:parseFloat(f.potencia_p4)||0,potencia_p5:parseFloat(f.potencia_p5)||0,potencia_p6:parseFloat(f.potencia_p6)||0});
+    if(esGas)await db.ins("contratos",{...base,tipo:"gas",cups:f.cups_gas,comercializadora_id:f.comercializadora_gas,producto_id:prIdGas,tiposol:f.tiposol_gas,comision_calculada:parseFloat(String(f.comision_prevista_gas).replace(",","."))});
     await recargar("contratos"); setModal(null);
   };
 
@@ -2606,6 +2758,7 @@ function ModalNuevoContrato() {
           <Field label="Tipo solicitud"><Sel value={f.tiposol_luz} onChange={e=>setF({...f,tiposol_luz:e.target.value})}><option value="C1">C1 · Cambio comercializadora</option><option value="A">A · Alta nueva</option></Sel></Field>
           <Field label="Comercializadora Luz"><Sel value={f.comercializadora_luz} onChange={e=>setF({...f,comercializadora_luz:e.target.value,producto_luz:""})}><option value="">Selecciona…</option>{cmLuz.map(cm=><option key={cm.id} value={cm.id}>{cm.nombre}</option>)}</Sel></Field>
           <Field label="Producto Luz"><Sel value={prIdLuz} onChange={e=>setF({...f,producto_luz:e.target.value})}><option value="">Selecciona…</option>{prodsLuz.map(p=><option key={p.id} value={p.id}>{p.nombre} · {p.tarifa}</option>)}</Sel></Field>
+          <Field label="COMISIÓN PREVISTA *"><Input type="number" min="0" step="0.01" placeholder="Importe manual en €" value={f.comision_prevista_luz} onChange={e=>setF({...f,comision_prevista_luz:e.target.value})} style={f.comision_prevista_luz===""?{borderColor:C.err}:{}}/><div style={{fontSize:11,color:f.comision_prevista_luz===""?C.err:C.mut,marginTop:3}}>Obligatoria para guardar el contrato.</div></Field>
         </div>
         {prLuz&&<div style={{fontSize:11,color:C.mut,marginBottom:8,padding:"6px 10px",background:C.greyBg,borderRadius:6}}>{prLuz.tipo_precio} · {prLuz.sector} · Tarifa {prLuz.tarifa}</div>}
         <div style={{fontSize:11,fontWeight:600,color:C.mut,marginBottom:6}}>POTENCIAS (kW)</div>
@@ -2621,6 +2774,7 @@ function ModalNuevoContrato() {
           <Field label="Tipo solicitud"><Sel value={f.tiposol_gas} onChange={e=>setF({...f,tiposol_gas:e.target.value})}><option value="C1">C1 · Cambio comercializadora</option><option value="A">A · Alta nueva</option></Sel></Field>
           <Field label="Comercializadora Gas"><Sel value={f.comercializadora_gas} onChange={e=>setF({...f,comercializadora_gas:e.target.value,producto_gas:""})}><option value="">Selecciona…</option>{cmGas.map(cm=><option key={cm.id} value={cm.id}>{cm.nombre}</option>)}</Sel></Field>
           <Field label="Producto Gas"><Sel value={prIdGas} onChange={e=>setF({...f,producto_gas:e.target.value})}><option value="">Selecciona…</option>{prodsGas.map(p=><option key={p.id} value={p.id}>{p.nombre} · {p.tarifa}</option>)}</Sel></Field>
+          <Field label="COMISIÓN PREVISTA *"><Input type="number" min="0" step="0.01" placeholder="Importe manual en €" value={f.comision_prevista_gas} onChange={e=>setF({...f,comision_prevista_gas:e.target.value})} style={f.comision_prevista_gas===""?{borderColor:C.err}:{}}/><div style={{fontSize:11,color:f.comision_prevista_gas===""?C.err:C.mut,marginTop:3}}>Obligatoria para guardar el contrato.</div></Field>
         </div>
         {prGas&&<div style={{fontSize:11,color:C.mut,marginBottom:8,padding:"6px 10px",background:C.greyBg,borderRadius:6}}>{prGas.tipo_precio} · {prGas.sector} · Tarifa {prGas.tarifa}</div>}
       </>}
@@ -2658,9 +2812,12 @@ function ModalNuevoContrato() {
       </div>
       <Field label="Observaciones"><Input value={f.observaciones} onChange={e=>setF({...f,observaciones:e.target.value})}/></Field>
       <Btn disabled={
-        ((!esLuz||!f.cups_luz||!prIdLuz)&&(!esGas||!f.cups_gas||!prIdGas))
+        (esLuz&&(!f.cups_luz||!prIdLuz))
+        ||(esGas&&(!f.cups_gas||!prIdGas))
         ||(esLuz&&f.cups_luz&&!validarCUPS(f.cups_luz))
         ||(esGas&&f.cups_gas&&!validarCUPS(f.cups_gas))
+        ||(esLuz&&!comisionValida(f.comision_prevista_luz))
+        ||(esGas&&!comisionValida(f.comision_prevista_gas))
       } onClick={guardar}>
         Crear contrato{tipo==="dual"?" (Luz + Gas)":""}
       </Btn>
@@ -2717,6 +2874,144 @@ function ModalEnviarInergia() {
         {!resultado?.ok&&<Btn disabled={faltan.length>0||enviando} onClick={enviar}><Send size={14}/> {enviando?"Enviando…":"Enviar a iNergia"}</Btn>}
         <Btn kind="ghost" onClick={()=>setModal(null)}>{resultado?.ok?"Cerrar":"Cancelar"}</Btn>
       </div>
+    </Modal>
+  );
+}
+
+const numeroComision=v=>{
+  if(typeof v==="number")return Number.isFinite(v)?v:null;
+  const s=String(v??"").trim(); if(!s)return null;
+  const limpio=s.includes(",")?s.replace(/\./g,"").replace(",", "."):s;
+  const n=Number(limpio.replace(/[^0-9.-]/g,""));
+  return Number.isFinite(n)?n:null;
+};
+const ultimaLineaComision=(contratoId,datos)=>(datos.lineas||[])
+  .filter(l=>l.contrato_id===contratoId&&l.concepto==="Comisión")
+  .sort((a,b)=>String(b.created_at||b.id).localeCompare(String(a.created_at||a.id)))[0];
+const liquidacionManualPara=async(ct,datos,origen,cache=new Map())=>{
+  const proveedorId=datos.comercializadoras.find(cm=>cm.id===ct.comercializadora_id)?.proveedor_id;
+  if(!proveedorId)throw new Error("La comercializadora del contrato no tiene proveedor asignado.");
+  const periodo=`${origen} ${fmtF(hoy())}`;
+  const clave=proveedorId+"|"+periodo;
+  if(cache.has(clave))return cache.get(clave);
+  const existente=datos.liquidaciones.find(l=>l.proveedor_id===proveedorId&&l.periodo===periodo);
+  if(existente){cache.set(clave,existente.id);return existente.id;}
+  const d=await db.ins("liquidaciones",{proveedor_id:proveedorId,periodo,fecha:hoy(),estado:"pendiente"});
+  const id=d?.data?.[0]?.id;
+  if(!id)throw new Error("No se ha podido crear la liquidación del proveedor.");
+  cache.set(clave,id);return id;
+};
+
+function ModalRevisarComision() {
+  const {datos,recargar,setModal,modal}=useContext(Ctx);
+  const ct=datos.contratos.find(c=>c.id===modal.ctId);
+  const cl=datos.clientes.find(c=>c.id===ct?.cliente_id);
+  const cm=datos.comercializadoras.find(c=>c.id===ct?.comercializadora_id);
+  const linea=ct?ultimaLineaComision(ct.id,datos):null;
+  const [f,setF]=useState({prevista:ct?.comision_calculada??"",recibida:linea?.importe??""});
+  const [guardando,setGuardando]=useState(false);
+  if(!ct)return null;
+  const guardar=async(confirmar=false)=>{
+    const prevista=numeroComision(f.prevista),recibida=numeroComision(f.recibida);
+    if(prevista===null||prevista<0||recibida===null||recibida<0){alert("Completa las dos comisiones con importes válidos.");return;}
+    if(confirmar&&Math.abs(prevista-recibida)>=0.005){alert("Para confirmar el contrato como liquidado, los dos importes deben coincidir.");return;}
+    setGuardando(true);
+    try{
+      await db.upd("contratos","id=eq."+ct.id,{comision_calculada:prevista,...(confirmar?{estado:"comisionado",fecha_comisionado:hoy(),estado_at:new Date().toISOString()}:{})});
+      if(linea)await db.upd("lineas_liquidacion","id=eq."+linea.id,{importe:recibida});
+      else{
+        const liquidacion_id=await liquidacionManualPara(ct,datos,"Revisión manual");
+        await db.ins("lineas_liquidacion",{liquidacion_id,contrato_id:ct.id,concepto:"Comisión",importe:recibida,pct_override:null});
+      }
+      if(confirmar)await db.ins("eventos",{origen:"CRM",tipo:"contrato.comisionado",ref:ct.id,detalle:`Comisión liquidada ${fmtE(recibida)} · ${ct.cups}`});
+      await recargar("liquidaciones");setModal(null);
+    }catch(e){alert(e.message);setGuardando(false);}
+  };
+  const prevista=numeroComision(f.prevista),recibida=numeroComision(f.recibida);
+  const diferencia=prevista!==null&&recibida!==null?recibida-prevista:null;
+  return (
+    <Modal title="Revisar comisiones" onClose={()=>setModal(null)}>
+      <div style={{padding:"10px 12px",background:C.greyBg,borderRadius:8,marginBottom:14}}><div style={{fontWeight:700}}>{cl?.razon_social||"Sin cliente"}</div><div style={{fontSize:12,color:C.mut,marginTop:3}}>{ct.cups} · {cm?.nombre||"Sin comercializadora"}</div></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <Field label="COMISIÓN PREVISTA"><Input autoFocus type="number" min="0" step="0.01" value={f.prevista} onChange={e=>setF({...f,prevista:e.target.value})}/></Field>
+        <Field label="COMISIÓN RECIBIDA"><Input type="number" min="0" step="0.01" value={f.recibida} onChange={e=>setF({...f,recibida:e.target.value})}/></Field>
+      </div>
+      <div style={{fontSize:13,padding:"9px 11px",borderRadius:8,marginBottom:14,background:diferencia===null?C.greyBg:Math.abs(diferencia)<0.005?"#E7F0FF":C.warnBg,color:diferencia===null?C.mut:Math.abs(diferencia)<0.005?"#2F65A7":C.warn}}>Diferencia: <b>{diferencia===null?"—":fmtE(diferencia)}</b></div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Btn kind="ghost" disabled={guardando||prevista===null||recibida===null} onClick={()=>guardar(false)}>{guardando?"Guardando…":"Guardar cambios"}</Btn><Btn kind="ok" disabled={guardando||prevista===null||recibida===null||Math.abs(prevista-recibida)>=0.005} onClick={()=>guardar(true)}><CheckCircle2 size={14}/> Guardar y confirmar liquidado</Btn><Btn kind="ghost" onClick={()=>setModal(null)}>Cancelar</Btn></div>
+    </Modal>
+  );
+}
+
+function ModalAnadirLineasLiq() {
+  const {yo,datos,recargar,setModal}=useContext(Ctx);
+  const [busqueda,setBusqueda]=useState("");
+  const [canal,setCanal]=useState("");
+  const [comercializadora,setComercializadora]=useState("");
+  const [todosEstados,setTodosEstados]=useState(false);
+  const [seleccion,setSeleccion]=useState(new Set());
+  const [edits,setEdits]=useState({});
+  const [guardando,setGuardando]=useState(false);
+  const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+  const canales=[...new Set(datos.contratos.map(c=>String(c.canal||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
+  const comercializadoras=[...datos.comercializadoras].sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+  const actuales=contratosActuales(datos.contratos).filter(ct=>can.verTodasLiq(yo)||comercialCarteraId(ct,datos)===yo?.id);
+  const lista=actuales.filter(ct=>{
+    const cl=datos.clientes.find(c=>c.id===ct.cliente_id);
+    const texto=norm([cl?.razon_social,cl?.cif,cl?.nif,ct.cups].join(" "));
+    return (todosEstados||normalizarEstado(ct.estado)==="activado")&&(!busqueda||texto.includes(norm(busqueda)))&&(!canal||String(ct.canal||"").trim()===canal)&&(!comercializadora||ct.comercializadora_id===comercializadora);
+  }).sort((a,b)=>String(b.fecha_activacion||b.fecha_registro||"").localeCompare(String(a.fecha_activacion||a.fecha_registro||"")));
+  const valor=(ct,campo)=>Object.prototype.hasOwnProperty.call(edits[ct.id]||{},campo)?edits[ct.id][campo]:(campo==="prevista"?ct.comision_calculada??"":ultimaLineaComision(ct.id,datos)?.importe??"");
+  const cambiar=(id,campo,v)=>setEdits(x=>({...x,[id]:{...(x[id]||{}),[campo]:v}}));
+  const toggle=id=>setSeleccion(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
+  const todasMarcadas=lista.length>0&&lista.every(ct=>seleccion.has(ct.id));
+  const toggleTodas=()=>setSeleccion(s=>{const n=new Set(s);if(todasMarcadas)lista.forEach(ct=>n.delete(ct.id));else lista.forEach(ct=>n.add(ct.id));return n;});
+  const guardar=async()=>{
+    const elegidos=actuales.filter(ct=>seleccion.has(ct.id));
+    if(!elegidos.length)return;
+    const preparados=elegidos.map(ct=>({ct,prevista:numeroComision(valor(ct,"prevista")),recibida:numeroComision(valor(ct,"recibida"))}));
+    const incompletos=preparados.filter(x=>x.prevista===null||x.prevista<0||x.recibida===null||x.recibida<0);
+    if(incompletos.length){alert(`Hay ${incompletos.length} contrato${incompletos.length>1?"s":""} seleccionado${incompletos.length>1?"s":""} sin las dos comisiones completas.`);return;}
+    setGuardando(true);
+    try{
+      const cache=new Map(),nuevas=[];
+      for(const {ct,prevista,recibida} of preparados){
+        if(numeroComision(ct.comision_calculada)!==prevista)await db.upd("contratos","id=eq."+ct.id,{comision_calculada:prevista});
+        const linea=ultimaLineaComision(ct.id,datos);
+        if(linea)await db.upd("lineas_liquidacion","id=eq."+linea.id,{importe:recibida});
+        else{const liquidacion_id=await liquidacionManualPara(ct,datos,"Selección manual",cache);nuevas.push({liquidacion_id,contrato_id:ct.id,concepto:"Comisión",importe:recibida,pct_override:null});}
+      }
+      if(nuevas.length)await db.ins("lineas_liquidacion",nuevas);
+      await recargar("liquidaciones");setModal(null);
+      alert(`${preparados.length} línea${preparados.length>1?"s":""} guardada${preparados.length>1?"s":""}.`);
+    }catch(e){alert(e.message);setGuardando(false);}
+  };
+  return (
+    <Modal title="Añadir líneas a liquidaciones" onClose={()=>setModal(null)} xwide>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1.2fr auto",gap:10,alignItems:"end",marginBottom:4}}>
+        <Field label="Buscar razón social, CIF o CUPS"><div style={{position:"relative"}}><Search size={14} style={{position:"absolute",left:10,top:10,color:C.mut}}/><Input value={busqueda} onChange={e=>setBusqueda(e.target.value)} placeholder="Escribe para buscar…" style={{paddingLeft:31}}/></div></Field>
+        <Field label="Canal"><Sel value={canal} onChange={e=>setCanal(e.target.value)}><option value="">Todos</option>{canales.map(x=><option key={x}>{x}</option>)}</Sel></Field>
+        <Field label="Comercializadora"><Sel value={comercializadora} onChange={e=>setComercializadora(e.target.value)}><option value="">Todas</option>{comercializadoras.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</Sel></Field>
+        <Btn kind="ghost" onClick={()=>{setBusqueda("");setCanal("");setComercializadora("");}}>Limpiar</Btn>
+      </div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:10,flexWrap:"wrap"}}>
+        <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={todosEstados} onChange={e=>setTodosEstados(e.target.checked)}/> Mostrar contratos de todos los estados <span style={{color:C.mut}}>(por defecto solo ACTIVADO)</span></label>
+        <div style={{fontSize:12,color:C.mut}}>{lista.length} contratos · <b style={{color:C.ink}}>{seleccion.size} seleccionados</b></div>
+      </div>
+      <Card style={{overflow:"auto",maxHeight:"52vh"}}>
+        <table style={{width:"100%",minWidth:1100,borderCollapse:"collapse"}}>
+          <thead style={{position:"sticky",top:0,background:C.panel,zIndex:2}}><tr><TH><input type="checkbox" checked={todasMarcadas} onChange={toggleTodas} title="Seleccionar los contratos visibles"/></TH><TH>Razón social</TH><TH>CUPS</TH><TH>Fecha activación</TH><TH>Canal</TH><TH>Comercializadora</TH><TH right>Comisión prevista</TH><TH right>Comisión recibida</TH></tr></thead>
+          <tbody>{lista.map(ct=>{
+            const cl=datos.clientes.find(c=>c.id===ct.cliente_id),cm=datos.comercializadoras.find(c=>c.id===ct.comercializadora_id);
+            const prevista=valor(ct,"prevista"),recibida=valor(ct,"recibida"),marcada=seleccion.has(ct.id);
+            return <tr key={ct.id} style={{background:marcada?C.infoBg:prevista===""?C.errBg:"white",borderTop:"1px solid "+C.line}}>
+              <TD><input type="checkbox" checked={marcada} onChange={()=>toggle(ct.id)}/></TD><TD style={{fontWeight:700}}>{cl?.razon_social||"Sin cliente"}</TD><TD style={{fontSize:12,whiteSpace:"nowrap"}}>{ct.cups}</TD><TD style={{whiteSpace:"nowrap"}}>{fmtF(ct.fecha_activacion)}</TD><TD>{ct.canal||"—"}</TD><TD>{cm?.nombre||"—"}</TD>
+              <TD right><Input type="number" min="0" step="0.01" value={prevista} onChange={e=>cambiar(ct.id,"prevista",e.target.value)} placeholder="Obligatoria" style={{width:105,textAlign:"right",borderColor:prevista===""?C.err:C.line}}/></TD>
+              <TD right><Input type="number" min="0" step="0.01" value={recibida} onChange={e=>cambiar(ct.id,"recibida",e.target.value)} placeholder="Importe" style={{width:105,textAlign:"right"}}/></TD>
+            </tr>;
+          })}{lista.length===0&&<tr><TD colSpan={8} style={{color:C.mut}}>No hay contratos que coincidan con la búsqueda.</TD></tr>}</tbody>
+        </table>
+      </Card>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginTop:14}}><div style={{fontSize:12,color:C.mut}}>Marca las líneas que quieras incluir y completa ambos importes.</div><div style={{display:"flex",gap:8}}><Btn kind="ghost" onClick={()=>setModal(null)}>Cancelar</Btn><Btn disabled={!seleccion.size||guardando} onClick={guardar}>{guardando?"Guardando…":`Guardar ${seleccion.size||""} línea${seleccion.size===1?"":"s"}`}</Btn></div></div>
     </Modal>
   );
 }
@@ -3122,7 +3417,7 @@ function ModalNuevoTicket() {
   );
 }
 
-const MODALES={nuevoCliente:ModalNuevoCliente,nuevoContrato:ModalNuevoContrato,editarContrato:ModalEditarContrato,enviarInergia:ModalEnviarInergia,nuevaLiq:ModalNuevaLiq,nuevaLinea:ModalNuevaLinea,nuevoUsuario:ModalNuevoUsuario,nuevaComer:ModalNuevaComer,nuevoProducto:ModalNuevoProducto,tramos:ModalTramos,renovar:ModalRenovar,nuevoTicket:ModalNuevoTicket};
+const MODALES={nuevoCliente:ModalNuevoCliente,nuevoContrato:ModalNuevoContrato,editarContrato:ModalEditarContrato,enviarInergia:ModalEnviarInergia,revisarComision:ModalRevisarComision,anadirLineasLiq:ModalAnadirLineasLiq,nuevaLiq:ModalNuevaLiq,nuevaLinea:ModalNuevaLinea,nuevoUsuario:ModalNuevoUsuario,nuevaComer:ModalNuevaComer,nuevoProducto:ModalNuevoProducto,tramos:ModalTramos,renovar:ModalRenovar,nuevoTicket:ModalNuevoTicket};
 
 export default function App() {
   const [yo,       setYo]      = useState(null);
